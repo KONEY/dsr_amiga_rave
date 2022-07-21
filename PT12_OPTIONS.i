@@ -78,7 +78,7 @@ usecode	=-1	;CHANGE! to the USE hexcode from P61con for a big
 		;...STOP! Have you changed it yet!? ;)
 		;You will LOSE RASTERTIME AND FEATURES if you don't.
 
-P61pl=usecode&$100B002 ; MECHMICROBES
+P61pl	=usecode&$960F ; AMIGA RAVE SUBI
 
 split4	=0	;Great time gain, but INCOMPATIBLE with F03, F02, and F01
 		;speeds in the song! That's the ONLY reason it's default 0.
@@ -87,7 +87,7 @@ split4	=0	;Great time gain, but INCOMPATIBLE with F03, F02, and F01
 		;See ;@@ note for P61_SetPosition.
 
 
-splitchans	=1	;#channels to be split off to be decrunched at "playtime frame"
+splitchans=1	;#channels to be split off to be decrunched at "playtime frame"
 		;0=use normal "decrunch all channels in the same frame"
 		;Experiment to find minimum rastertime, but it should be 1 or 2
 		;for 3-4 channels songs and 0 or 1 with less channels.
@@ -113,7 +113,7 @@ playflag	=0	;1=enable music on/off capability (at run-time). .If 0, you can
 		;still do this by just, you know, not calling P61_Music...
 		;It's a convenience function to "pause" music in CIA mode.
 
-p61bigjtab	=1	;1 to waste 480b and save max 56 cycles on 68000.
+p61bigjtab=1	;1 to waste 480b and save max 56 cycles on 68000.
 
 opt020	=0	;1=enable optimizations for 020+. Please be 68000 compatible!
 		;splitchans will already give MUCH bigger gains, and you can
@@ -137,7 +137,7 @@ oscillo	=0	;1 to get a sample window (ptr, size) to read and display for
 quietstart=0	;attempt to avoid the very first click in some modules
 		;IMPORTANT: see ;@@ note about chipmem dc.w buffer.
 
-use1Fx	=1	;Optional extra effect-sync trigger (*). If your module is free
+use1Fx	=0	;Optional extra effect-sync trigger (*). If your module is free
 		;from E commands, and you add E8x to sync stuff, this will 
 		;change the usecode to include a whole code block for all E 
 		;commands. You can avoid this by only using 1Fx. (You can 

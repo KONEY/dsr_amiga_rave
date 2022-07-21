@@ -1,10 +1,10 @@
 ;*** MiniStartup by Photon ***
 	INCDIR	"NAS:AMIGA/CODE/dsr_amiga_rave/"
-	SECTION	"Code",CODE
+	SECTION	"Code+PT12",CODE
 	INCLUDE	"PhotonsMiniWrapper1.04!.S"
 	INCLUDE	"custom-registers.i"	;use if you like ;)
-	;INCLUDE	"PT12_OPTIONS.i"
-	;INCLUDE	"P6112-Play-stripped.i"
+	INCLUDE	"PT12_OPTIONS.i"
+	INCLUDE	"P6112-Play-stripped.i"
 ;********** Constants **********
 wi		EQU 320
 he		EQU 256		; screen height
@@ -33,7 +33,6 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	;*--- init ---*
 	MOVE.L	#VBint,$6C(A4)
 	MOVE.W	#%1110000000100000,INTENA
-	;** SOMETHING INSIDE HERE IS NEEDED TO MAKE MOD PLAY! **
 	MOVE.W	#%1000001111100000,DMACON
 	;*--- clear screens ---*
 	;LEA	SCREEN1,A1
@@ -53,6 +52,11 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	LEA	BGPLANE2,A0
 	LEA	COPPER\.BplPtrs+16,A1
 	BSR.W	PokePtrs
+
+	; #### Point LOGO sprites
+	LEA	COPPER\.SpritePointers,A1
+	BSR.W	__POKE_SPRITE_POINTERS
+	; #### Point LOGO sprites
 
 	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
 	; #### POPULATE COPPER WAITS ####
@@ -137,32 +141,29 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	;MOVE.L	#DITHERPLANE,A4		; FILLS A PLANE #DITHERPLANE
 	;MOVE.W	#0,D0
 	;BSR.W	__DITHER_PLANE		; WITH DITHERING
-	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
 
 	BSR.W	__Y_LFO_EASYING
 	BSR.W	__X_LFO_EASYING
 	BSR.W	__X_LFO_EASYING
+
+	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
+
+	; ---  Call P61_Init  ---
+	MOVEM.L	D0-A6,-(SP)
+	LEA	MODULE,A0
+	SUB.L	A1,A1
+	SUB.L	A2,A2
+	MOVE.W	#MODSTART_POS,P61_InitPos	; TRACK START OFFSET
+	JSR	P61_Init
+	MOVEM.L (SP)+,D0-A6
 
 	MOVE.L	#COPPER,COP1LC
 ;********************  main loop  ********************
 MainLoop:
 	;MOVE.W	#$12C,D0		; No buffering, so wait until raster
 	;BSR.W	WaitRaster	;is below the Display Window.
-	;*--- swap buffers ---*
-	;movem.l	DrawBuffer(PC),a2-a3
-	;exg	a2,a3
-	;movem.l	a2-a3,DrawBuffer	;draw into a2, show a3
-	;;*--- show one... ---*
-	;move.l	a3,a0
-	;move.l	#bypl*h,d0
-	;lea	COPPER\.BplPtrs+2,a1
-	;moveq	#bpls-1,d1
-	;bsr.w	PokePtrs
-	;;*--- ...draw into the other(a2) ---*
-	;move.l	a2,a1
-	;;bsr	ClearScreen
-	;BSR.W	__SET_PT_VISUALS
-	;MOVE.L	KONEYBG,DrawBuffer
+
+	BSR.W	__SET_PT_VISUALS
 
 	; do stuff here :)
 	SONG_BLOCKS_EVENTS:
@@ -225,9 +226,9 @@ MainLoop:
 	BNE.W	MainLoop		; then loop
 	;*--- exit ---*
 	;;    ---  Call P61_End  ---
-	;MOVEM.L D0-A6,-(SP)
-	;JSR P61_End
-	;MOVEM.L (SP)+,D0-A6
+	MOVEM.L D0-A6,-(SP)
+	JSR P61_End
+	MOVEM.L (SP)+,D0-A6
 	RTS
 
 ;********** Demo Routines **********
@@ -266,23 +267,97 @@ VBint:				; Blank template VERTB interrupt
 	movem.l	(sp)+,d0/a6	; restore
 	rte
 
-__DITHER_PLANE:
-	MOVE.L	A4,A4
-	MOVE.W	#he-1,D4		; QUANTE LINEE
-	MOVE.L	#$AAAAAAAA,D5
-	.outerloop:		; NUOVA RIGA
-	MOVE.W	#(bypl/4)-1,D6	; RESET D6
-	NOT.L	D5
-	.innerloop:		; LOOP KE CICLA LA BITMAP
-	MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
-	MOVE.L	D5,(A4)+
-	DBRA	D6,.innerloop
-	TST.W	D0
-	BEQ.S	.noWait
-	BSR.W	WaitEOF		; TO SLOW DOWN :)
-	.noWait:
-	DBRA	D4,.outerloop
+__SET_PT_VISUALS:
+	; ## SONG POS RESETS ##
+	MOVE.W	P61_Pos,D6
+	MOVE.W	P61_DUMMY_POS,D5
+	CMP.W	D5,D6
+	BEQ.S	.dontReset
+	ADDQ.W	#1,P61_DUMMY_POS
+	ADDQ.W	#1,P61_LAST_POS
+	.dontReset:
+	; ## SONG POS RESETS ##
+
+	; ## MOD VISUALIZERS ##########
+	; ## KICK FX - SAMPLE#3 - KICK10.WAV ON CH1
+	LEA	P61_visuctr1(PC),A0	; which channel? 0-3
+	MOVEQ	#15,D0		; maxvalue
+	SUB.W	(A0),D0		; -#frames/irqs since instrument trigger
+	BPL.S	.ok1		; below minvalue?
+	MOVEQ	#0,D0		; then set to minvalue
+	.ok1:
+
+	MOVE.W	P61_CH1_INS,D1	; NEW VALUES FROM P61
+	CMPI.W	#3,D1		; SAMPLE # 3
+	BLO.S	.skipKickFx
+	.skipKickFx:
+	; MOD VISUALIZERS *****
+
+	MOVE.W	P61_LAST_POS,D1
+	CMPI.W	#76,D1		; STOP AT END OF MUSIC
+	BNE.S	.dontStopMusic
+	MOVEM.L	D0-A6,-(SP)
+	JSR	P61_End
+	MOVEM.L	(SP)+,D0-A6
+	MOVE.W	#0,P61_DUMMY_POS
+	SUBI.W	#1,P61_LAST_POS
+	.dontStopMusic:
 	RTS
+
+__POKE_SPRITE_POINTERS:
+	MOVE.L	#SPRT_D,D0
+	MOVE.W	D0,6(A1)
+	SWAP	D0
+	MOVE.W	D0,2(A1)
+
+	ADDQ.W	#8,A1
+	MOVE.L	#SPRT_E,D0
+	MOVE.W	D0,6(A1)
+	SWAP	D0
+	MOVE.W	D0,2(A1)
+
+	ADDQ.W	#8,A1
+	MOVE.L	#SPRT_S,D0
+	MOVE.W	D0,6(A1)
+	SWAP	D0
+	MOVE.W	D0,2(A1)
+
+	ADDQ.W	#8,A1
+	MOVE.L	#SPRT_I,D0
+	MOVE.W	D0,6(A1)
+	SWAP	D0
+	MOVE.W	D0,2(A1)
+
+	ADDQ.W	#8,A1
+	MOVE.L	#SPRT_R,D0
+	MOVE.W	D0,6(A1)
+	SWAP	D0
+	MOVE.W	D0,2(A1)
+
+	ADDQ.W	#8,A1
+	MOVE.L	#SPRT_E2,D0
+	MOVE.W	D0,6(A1)
+	SWAP	D0
+	MOVE.W	D0,2(A1)
+	RTS
+
+__DITHER_PLANE:
+	;MOVE.L	A4,A4
+	;MOVE.W	#he-1,D4		; QUANTE LINEE
+	;MOVE.L	#$AAAAAAAA,D5
+	;.outerloop:		; NUOVA RIGA
+	;MOVE.W	#(bypl/4)-1,D6	; RESET D6
+	;NOT.L	D5
+	;.innerloop:		; LOOP KE CICLA LA BITMAP
+	;MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
+	;MOVE.L	D5,(A4)+
+	;DBRA	D6,.innerloop
+	;TST.W	D0
+	;BEQ.S	.noWait
+	;BSR.W	WaitEOF		; TO SLOW DOWN :)
+	;.noWait:
+	;DBRA	D4,.outerloop
+	;RTS
 
 __MIRROR_PLANE:
 	MOVE.L	A4,A5
@@ -430,6 +505,7 @@ __COPPER_POPULATE_MIRROR:
 	DBRA	D7,.loop
 	RTS
 
+	IFNE	COP_DEFRAG
 __COPPER_DEFRAG:				; ROUTINES CONTAINER
 	LEA	COPPER\.COPPERWAITS,A2	; PRELOAD DEST
 	LEA	COPWAITSSRC,A0		; PRELOAD SOURCE BUFFER
@@ -494,6 +570,7 @@ __COPPER_MOVE_INSTRC:
 	CMP.L	#$FFFFFFFE,(A3)		; IS END?
 	BNE.S	.loop
 	RTS
+	ENDC
 
 __BLIT_GLITCH_DATA:
 	MOVE.W	#%0000100111110000,D1
@@ -1499,7 +1576,10 @@ __BLOCK_END:
 	RTS
 
 ;********** Fastmem Data **********
-TIMELINE:		DC.L __BLOCK_0,__BLOCK_0000,__BLOCK_END
+TIMELINE:		DC.L __BLOCK_0000,__BLOCK_0000,__BLOCK_0000,__BLOCK_0000
+		DC.L __BLOCK_0,__BLOCK_0,__BLOCK_0,__BLOCK_000
+		DC.L __BLOCK_0,__BLOCK_0,__BLOCK_0,__BLOCK_0000
+		DC.L __BLOCK_0000,__BLOCK_0,__BLOCK_0000,__BLOCK_0
 
 BPL_PTR_BUF:	DC.L 0
 AUDIOCHLEVEL0NRM:	DC.W 0
@@ -1587,20 +1667,13 @@ X_EASYING2:	DC.W 1
 	SECTION	ChipData,DATA_C	;declared data that must be in chipmem
 	;*******************************************************************************
 
+
+DSR_LOGO:		INCLUDE "sprites_logo.i"
 PATTERN:		INCBIN "NewPattern_64x64.raw"
 TEXTURE_V:	INCBIN "ThinPurple2_64x640x2.raw"
 TEXTURE:		INCBIN "PurpleT_160x640x3.raw"	;"TEST_160x640x3.raw"	
 
 MODULE:		INCBIN "subi-rave_amiga_demo-preview_4_fix.P61"	; code $960F
-
-FONT:		DC.L 0,0		; SPACE CHAR
-		;INCBIN "digital_font.raw",0
-		EVEN
-
-TEXT:		DC.B "!!WARNING!! - EPILEPSY DANGER AHEAD!!   SERIOUSLY... :)    "
-		DC.B "LOREM IPSUM :)            .EOF			     "
-		EVEN
-_TEXT:
 
 COPPER:
 	DC.W $1FC,0	; Slow fetch mode, remove if AGA demo.
@@ -1616,8 +1689,8 @@ COPPER:
 	.Palette:
 	DC.W $0180,$0001,$0182,$0F0C,$0184,$0C0B,$0186,$0A0B
 	DC.W $0188,$080A,$018A,$070A,$018C,$0609,$018E,$0408
-	DC.W $0190,$0888,$0192,$0888,$0194,$0999,$0196,$0AAA
-	DC.W $0198,$0BBB,$019A,$0CCC,$019C,$0DDD,$019E,$0FFF
+	DC.W $0190,$0888,$0192,$0F00,$0194,$00F0,$0196,$000F
+	DC.W $0198,$0FFF,$019A,$000A,$019C,$0FFF,$019E,$000F
 
 	.BplPtrs:
 	DC.W $E0,0
@@ -1644,12 +1717,26 @@ COPPER:
 	DC.W $138,0,$13A,0	; 6
 	DC.W $13C,0,$13E,0	; 7
 
-	DC.W $1A6
-	DC.W $000		; COLOR0-1
-	DC.W $1AE
-	DC.W $000		; COLOR2-3
-	DC.W $1B6
-	DC.W $000		; COLOR4-5
+	.SpriteColors:
+	DC.W $1A0,$0FFF
+	DC.W $1A2,$000A
+	DC.W $1A4,$0FFF
+	DC.W $1A6,$0FFF
+
+	DC.W $1A8,$0FFF
+	DC.W $1AA,$000A
+	DC.W $1AC,$0FFF
+	DC.W $1AE,$0FFF
+
+	DC.W $1B0,$0FFF
+	DC.W $1B2,$000A
+	DC.W $1B4,$0FFF
+	DC.W $1B6,$0FFF
+
+	DC.W $1B8,$0FFF
+	DC.W $1BA,$000A
+	DC.W $1BC,$0FFF
+	DC.W $1BE,$0FFF
 
 	.COPPERWAITS:
 	IFNE	COP_DEFRAG
