@@ -1,6 +1,11 @@
-SPRT_D:	DC.B	$A4	; Posizione verticale di inizio sprite (da $2c a $f2)
-	DC.B	$7A	; Posizione orizzontale di inizio sprite (da $40 a $d8)
-	DC.B	$B8	; $50+13=$5d	; posizione verticale di fine sprite
+SVSTART	EQU	$A4
+SHSTART	EQU	$77
+SW	EQU	$9
+SH	EQU	$14
+
+SPRT_D:	DC.B	SVSTART		; Posizione verticale di inizio sprite (da $2c a $f2)
+	DC.B	SHSTART		; Posizione orizzontale di inizio sprite (da $40 a $d8)
+	DC.B	SVSTART+SH	; $50+13=$5d	; posizione verticale di fine sprite
 	DC.B	$00
 	DC.W	$0000,$BFF8
 	DC.W	$5EFC,$0100
@@ -24,9 +29,9 @@ SPRT_D:	DC.B	$A4	; Posizione verticale di inizio sprite (da $2c a $f2)
 	DC.W	$5FFC,$0000
 	DC.W	0,0	; 2 word azzerate definiscono la fine dello sprite.
 
-SPRT_E:	DC.B	$A4
-	DC.B	$83
-	DC.B	$B8
+SPRT_E:	DC.B	SVSTART
+	DC.B	SHSTART+SW
+	DC.B	SVSTART+SH
 	DC.B	$00
 	DC.W	$0000,$BFFA
 	DC.W	$5EFD,$0100
@@ -50,9 +55,9 @@ SPRT_E:	DC.B	$A4
 	DC.W	$5FFD,$0000
 	DC.W	0,0
 
-SPRT_S:	DC.B	$A4
-	DC.B	$F1
-	DC.B	$B8
+SPRT_S:	DC.B	SVSTART
+	DC.B	SHSTART+SW+SW
+	DC.B	SVSTART+SH
 	DC.B	$00
 	DC.W	$0000,$3FFA
 	DC.W	$1EFD,$0100
@@ -76,9 +81,9 @@ SPRT_S:	DC.B	$A4
 	DC.W	$5FFC,$0000
 	DC.W	0,0
 
-SPRT_I:	DC.B	$A4
-	DC.B	$95
-	DC.B	$B8
+SPRT_I:	DC.B	SVSTART
+	DC.B	SHSTART+SW+SW+SW
+	DC.B	SVSTART+SH
 	DC.B	$00
 	DC.W	$0000,$BFFA
 	DC.W	$5EFD,$0100
@@ -102,9 +107,9 @@ SPRT_I:	DC.B	$A4
 	DC.W	$5FFD,$0000
 	DC.W	0,0
 
-SPRT_R:	DC.B	$A4
-	DC.B	$9E
-	DC.B	$B8
+SPRT_R:	DC.B	SVSTART
+	DC.B	SHSTART+SW+SW+SW+SW
+	DC.B	SVSTART+SH
 	DC.B	$00
 	DC.W	$0000,$BFF8
 	DC.W	$5EFC,$0100
@@ -128,9 +133,9 @@ SPRT_R:	DC.B	$A4
 	DC.W	$40FD,$0000
 	DC.W	0,0
 
-SPRT_E2:	DC.B	$A4
-	DC.B	$92
-	DC.B	$B8
+SPRT_E2:	DC.B	SVSTART
+	DC.B	SHSTART+SW+SW+SW+SW+SW
+	DC.B	SVSTART+SH
 	DC.B	$00
 	DC.W	$0000,$BFFA
 	DC.W	$5EFD,$0100
