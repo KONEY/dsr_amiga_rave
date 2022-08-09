@@ -78,7 +78,7 @@ usecode	=-1	;CHANGE! to the USE hexcode from P61con for a big
 		;...STOP! Have you changed it yet!? ;)
 		;You will LOSE RASTERTIME AND FEATURES if you don't.
 
-P61pl	=usecode&$960F ; AMIGA RAVE SUBI
+P61pl=usecode&$960F ; AMIGA RAVE SUBI
 
 split4	=0	;Great time gain, but INCOMPATIBLE with F03, F02, and F01
 		;speeds in the song! That's the ONLY reason it's default 0.
@@ -100,7 +100,7 @@ visuctrs	=1	;enables visualizers in this example: P61_visuctr0..3.w
 asmonereport=0	;ONLY for printing a settings report on assembly. Use
 		;if you get problems (only works in AsmOne/AsmPro, tho)
 
-p61system	=1	;1=system-friendly. Use for DOS/Workbench programs.
+p61system	=0	;1=system-friendly. Use for DOS/Workbench programs.
 
 p61exec	=0	;0 if execbase is destroyed, such as in a trackmo.
 

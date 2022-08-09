@@ -1824,7 +1824,7 @@ ViewBuffer:	DC.L SCREEN1		; to be swapped
 	SECTION "ChipData",DATA_C	;declared data that must be in chipmem
 ;**************************************************************
 
-MODULE:		INCBIN "subi-rave_amiga_demo-preview_4.P61"	; code $960F
+MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"	; code $960F
 
 COPPER:
 	DC.W $1FC,0	; Slow fetch mode, remove if AGA demo.
