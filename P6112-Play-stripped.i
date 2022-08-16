@@ -3525,14 +3525,12 @@ P61_cianame:
 	dc.b 'ciab.resource',0
 P61_timeropen:
 	dc.b 0
-P61_timerint:
-	dc.b 'P61_TimerInterrupt',0,0
+P61_timerint:	dc.b 'P61_TimerInterrupt',0,0
 	endc
-P61_InitPos:
-	dc.w 0
+P61_InitPos:	dc.w 0
 	ifne use1Fx
-P61_PTrig: dc.w 0		;Poll this Custom trigger, using 'Bxx',pos $80-$ff
-P61_1F:	 dc.w 0
+P61_PTrig:	dc.w 0	;Poll this Custom trigger, using 'Bxx',pos $80-$ff
+P61_1F:		dc.w 0
 	endc
 	ifne useinsnum
 P61_CH3_INS:	DC.W 0	; here sample # are stored to use outside
