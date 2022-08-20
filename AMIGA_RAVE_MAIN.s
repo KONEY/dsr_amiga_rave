@@ -26,6 +26,30 @@ Y_SLICE		EQU 32
 MODSTART_POS	EQU 0		; start music at position # !! MUST BE EVEN FOR 16BIT
 ;*************
 
+_PushColorsDown:	MACRO
+	LEA	\1,A0
+	ADD.W	\2,A0		; FASTER THAN LEA \1+16
+	LEA	$DFF180,A1
+	REPT 4
+	MOVE.L	(A0)+,(A1)+
+	ENDR
+		ENDM
+_PushColorsUp:	MACRO
+	LEA	\1,A0
+	ADD.W	\2,A0		; FASTER THAN LEA \1+16
+	LEA	16(A0),A0		; FASTER THAN LEA \1+16
+	LEA	$DFF182,A1
+	REPT 4
+	MOVE.L	-(A0),(A1)+
+	ENDR
+		ENDM
+_WaitRasterCopper:	MACRO
+	;MOVE.W	#$0FF0,$DFF180		; show rastertime left down to $12c
+	BTST	#4,INTENAR+1
+	;MOVE.W	#$0000,$DFF180		; show rastertime left down to $12c
+	MOVE.W	#$8010,INTENA
+		ENDM
+
 ;********** Demo **********	;Demo-specific non-startup code below.
 Demo:			;a4=VBR, a6=Custom Registers Base addr
 	;*--- init ---*
@@ -80,12 +104,7 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	; ## PRECALCULATE BPL OFFSETS ##
 
 	; ## CPU COPPER :) ##
-	LEA	BLUE_TBL,A0
-	LEA	$DFF180,A1
-	MOVE.L	(A0)+,(A1)+
-	MOVE.L	(A0)+,(A1)+
-	MOVE.L	(A0)+,(A1)+
-	MOVE.L	(A0)+,(A1)+
+	_PushColorsDown	BLUE_TBL,#$0
 	; ## CPU COPPER :) ##
 
 	;BSR.W	__Y_LFO_EASYING
@@ -114,12 +133,13 @@ MainLoop:
 	;SONG_BLOCKS_EVENTS:
 	;* FOR TIMED EVENTS ON BLOCK ****
 	MOVE.W	P61_LAST_POS,D5
-	;MOVE.W	#$1,D5
+	;MOVE.W	#$2,D5
 	LEA	TIMELINE,A3
 	LSL.W	#$2,D5		; CALCULATES OFFSET (OPTIMIZED)
 	MOVE.L	(A3,D5),A4	; THANKS HEDGEHOG!!
 	JSR	(A4)		; EXECUTE SUBROUTINE BLOCK#
-	BSR.S	WaitRasterCopper	; is below the Display Window.
+
+	_WaitRasterCopper		; is below the Display Window.
 
 	;TST.B	FRAME_STROBE
 	;BNE.W	.oddFrame
@@ -156,14 +176,6 @@ MainLoop:
 	RTS
 
 ;********** Demo Routines **********
-WaitRasterCopper:
-	;MOVE.W	#$0FF0,$DFF180		; show rastertime left down to $12c
-	BTST	#4,INTENAR+1
-	BNE.S	WaitRasterCopper
-	;MOVE.W	#$0000,$DFF180		; show rastertime left down to $12c
-	MOVE.W	#$8010,INTENA
-	RTS
-
 PokePtrs:				; SUPER SHRINKED REFACTOR
 	MOVE.L	A0,-4(A0)		; Needs EMPTY plane to write addr
 	MOVE.W	-4(A0),2(A1)	; high word of address
@@ -441,8 +453,7 @@ __BLIT_TEXTURE_BAND:
 	MOVE.L	(A5),A3			; RELOAD RESET ADDRESS
 	.notEnd:
 
-	MOVE.W	#$8400,DMACON		; BLIT NASTY ENABLE
-	MOVE.W	#$400,DMACON		; BLIT NASTY DISABLE
+	_WaitBlitterNasty			; MACRO IS FASTER
 	MOVE.L	D4,BLTCON0		; BLTCON0
 	MOVE.L	D5,BLTAFWM		; THEY'LL NEVER
 	MOVE.L	D6,BLTAMOD		; BLTAMOD
@@ -607,7 +618,15 @@ __DO_HORIZ_TEXTURE:
 __BLK_2:
 	BSR.W	__Y_LFO_EASYING
 __BLK_0:
-	;MOVE.W	P61_ROW_INDEX,$DFF18E
+	CMPI.W	#28,D7			; WORKS STRAIGHT!
+	BLO.S	.Dont
+	BSR.W	__LFO_EASYING
+	MOVE.W	D1,X_EASYING
+	SUB.W	#$1,D1
+	LSL.W	#$4,D1
+	_PushColorsDOWN	BLUE_TBL,D1
+	.Dont:
+
 	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
 	BSR.S	__DO_HORIZ_TEXTURE
 
@@ -657,10 +676,6 @@ __BLK_0:
 
 __BLK_1:
 	;MOVE.W	#$0000,$DFF180
-	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
-	BSR.W	__DO_HORIZ_TEXTURE
-
-	MOVE.W	#$0,X_INCREMENT
 	CMPI.W	#28,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont
 	;CMPI.W	#63,D7			; WORKS STRAIGHT!
@@ -668,11 +683,13 @@ __BLK_1:
 
 	.full:
 	BSR.W	__LFO_EASYING
-	LSR.W	D1
 	MOVE.W	D1,X_EASYING
-	ADD.W	#$2,D1
-	MOVE.W	D1,Y_EASYING
+	;LSR.W	D1
+	;ADD.W	#$1,D1
+	;MOVE.W	D1,Y_EASYING
 	;BSR.W	__X_LFO_EASYING
+	LSL.W	#$4,D1
+	_PushColorsDOWN	BLUE_TBL,D1
 	BRA.S	.Dont2
 	.Dont:
 
@@ -681,7 +698,8 @@ __BLK_1:
 	MOVE.W	#$12,EASYING_IDX
 	MOVE.W	#$1,X_EASYING
 	MOVE.W	#$2,Y_EASYING
-	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
+	BSR.W	__DO_HORIZ_TEXTURE
 	.Dont2:
 
 	;## SETTINGS #####################
@@ -691,6 +709,7 @@ __BLK_1:
 	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
 	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
 	MOVE.L	#-1,D1
+	MOVE.W	#$0,X_INCREMENT
 	MOVE.W	#$0,Y_INCREMENT
 
 	;## PERFORM ######################
@@ -786,10 +805,7 @@ __SCROLL_COMBINED:
 	BEQ.B	.skip3
 	.notLast:
 
-	MOVE.W	#$8400,DMACON		; BLIT NASTY ENABLE
-	MOVE.W	#$400,DMACON		; BLIT NASTY DISABLE
-	;BSR	WaitBlitter
-
+	_WaitBlitterNasty			; MACRO IS FASTER
 	;## MAIN BLIT ####
 	MOVE.L	D1,BLTAFWM		; THEY'LL NEVER
 	MOVE.L	#$09F00000,BLTCON0
@@ -845,10 +861,7 @@ __SCROLL_COMBINED:
 	;MOVE.W	18(A5),D7			; PATCH LOST WORD
 	.skip2:
 
-	MOVE.W	#$8400,DMACON		; BLIT NASTY ENABLE
-	MOVE.W	#$400,DMACON		; BLIT NASTY DISABLE
-	;BSR	WaitBlitter
-
+	_WaitBlitterNasty			; MACRO IS FASTER
 	MOVE.L	D1,BLTAFWM		; THEY'LL NEVER
 	MOVE.L	D2,BLTCON0		; BLTCON0
 	;MOVE.W	D2,BLTCON1
@@ -876,8 +889,8 @@ __BLK_END:
 	RTS
 
 ;********** Fastmem Data **********
-TIMELINE:		DC.L __BLK_0,__BLK_1,__BLK_1,__BLK_3
-		DC.L __BLK_1,__BLK_1,__BLK_1,__BLK_1
+TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
+		DC.L __BLK_1,__BLK_1,__BLK_1,__BLK_3
 		DC.L __BLK_0,__BLK_0,__BLK_0,__BLK_0
 		DC.L __BLK_0,__BLK_0,__BLK_0,__BLK_0
 
@@ -965,6 +978,15 @@ EASYING:		DC.W 0
 	;*******************************************************************************
 
 BLUE_TBL:		DC.W $0002,$0004,$0007,$0009,$000B,$000C,$000E,$000F	; BLUE
+		DC.W $0002,$0104,$0107,$0008,$000A,$0208,$020D,$010D
+		;DC.W $0002,$0004,$0107,$0107,$020A,$0208,$0308,$0508
+		DC.W $0002,$0105,$0107,$0108,$010A,$0307,$040C,$020B
+		;DC.W $0002,$0005,$0206,$0207,$0208,$0406,$0506,$0705
+		DC.W $0002,$0105,$0106,$0107,$0209,$0506,$060B,$0409
+		DC.W $0002,$0205,$0206,$0206,$0308,$0506,$080A,$0609
+		DC.W $0002,$0205,$0206,$0306,$0407,$0707,$0A09,$0B08
+		DC.W $0002,$0206,$0205,$0406,$0507,$0807,$0B08,$0A08
+
 PURPL_TBL:	DC.W $0004,$0205,$0205,$0406,$0507,$0708,$0808,$0908	; PURPLE
 MAIN_TBL:		DC.W $0004,$0006,$0207,$0407,$0607,$0907,$0D07,$0F06	; MAIN
 MIXED_TBL:	DC.W $0000,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
@@ -984,6 +1006,7 @@ COPPER:
 	DC.W $102,0	; SCROLL REGISTER (AND PLAYFIELD PRI)
 
 	.Palette:
+	;DC.W $0180,$00F0
 	;DC.W $0180,$0004,$0182,$0006,$0184,$0207,$0186,$0407
 	;DC.W $0188,$0607,$018A,$0907,$018C,$0D07,$018E,$0F06
 
