@@ -39,6 +39,7 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	;BSR.W	ClearScreen
 	;BSR	WaitBlitter
 	;*--- start copper ---*
+	MOVE.L	#COPPER,COP1LC
 	LEA	BGPLANE0,A0
 	LEA	COPPER\.BplPtrs,A1
 	BSR.W	PokePtrs
@@ -50,10 +51,6 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	LEA	BGPLANE2,A0
 	LEA	COPPER\.BplPtrs+16,A1
 	BSR.W	PokePtrs
-
-	; #### Point LOGO sprites
-	BSR.W	__POKE_SPRITE_POINTERS
-	; #### Point LOGO sprites
 
 	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
 	MOVE.L	KICKSTART_ADDR,A3
@@ -82,10 +79,22 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	BLO.S	.loop
 	; ## PRECALCULATE BPL OFFSETS ##
 
-	BSR.W	__Y_LFO_EASYING
+	; ## CPU COPPER :) ##
+	LEA	BLUE_TBL,A0
+	LEA	$DFF180,A1
+	MOVE.L	(A0)+,(A1)+
+	MOVE.L	(A0)+,(A1)+
+	MOVE.L	(A0)+,(A1)+
+	MOVE.L	(A0)+,(A1)+
+	; ## CPU COPPER :) ##
 
+	;BSR.W	__Y_LFO_EASYING
 	BSR.W	__SWAP_ODD_EVEN_PTRS
 	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
+
+	; #### Point LOGO sprites
+	BSR.W	__POKE_SPRITE_POINTERS
+	; #### Point LOGO sprites
 
 	; ---  Call P61_Init  ---
 	MOVEM.L	D0-A6,-(SP)
@@ -95,8 +104,6 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVE.W	#MODSTART_POS,P61_InitPos	; TRACK START OFFSET
 	JSR	P61_Init
 	MOVEM.L (SP)+,D0-A6
-
-	MOVE.L	#COPPER,COP1LC
 ;********************  main loop  ********************
 MainLoop:
 	;MOVE.W	#$12C,D0		; No buffering, so wait until raster
@@ -107,7 +114,7 @@ MainLoop:
 	;SONG_BLOCKS_EVENTS:
 	;* FOR TIMED EVENTS ON BLOCK ****
 	MOVE.W	P61_LAST_POS,D5
-	;MOVE.W	#$0,D5
+	;MOVE.W	#$1,D5
 	LEA	TIMELINE,A3
 	LSL.W	#$2,D5		; CALCULATES OFFSET (OPTIMIZED)
 	MOVE.L	(A3,D5),A4	; THANKS HEDGEHOG!!
@@ -117,13 +124,20 @@ MainLoop:
 	;TST.B	FRAME_STROBE
 	;BNE.W	.oddFrame
 	;MOVE.B	#1,FRAME_STROBE
-	;MOVE.W	#0,P61_LAST_POS
+	;
 	;BRA.W	.evenFrame
 	;.oddFrame:
 	;MOVE.B	#0,FRAME_STROBE
-	;MOVE.W	#1,P61_LAST_POS
+	;
 	;.evenFrame:
-	;BSR.W	WaitEOF		; is below the Display Window.
+
+	;LSR.W	#$1,D7			; CHECK_ODD:
+	;BCC.S	.odd
+	;
+	;BRA.S	.done
+	;.odd:
+	;
+	;.done:
 
 	;*--- main loop end ---*
 	;ENDING_CODE:
@@ -188,27 +202,34 @@ __SWAP_ODD_EVEN_PTRS:
 	RTS
 
 __SET_PT_VISUALS:
-	; ## SEQUENCER LEDS ##
-	MOVE.W	P61_SEQ_POS,D0
-	MOVE.W	P61_rowpos,D6
-	MOVE.W	P61_DUMMY_SEQPOS,D5
-	CMP.W	D5,D6
-	BEQ.S	.dontResetRowPos
-	MOVE.W	D6,P61_DUMMY_SEQPOS
-	ADDQ.W	#$1,D0
-	AND.W	#$F,D0
-	MOVE.W	D0,P61_SEQ_POS
-	.dontResetRowPos:
-
 	; ## SONG POS RESETS ##
-	MOVE.W	P61_Pos,D6
+	MOVE.W	P61_Pos,D7
 	MOVE.W	P61_DUMMY_POS,D5
-	CMP.W	D5,D6
+	CMP.W	D5,D7
 	BEQ.S	.dontReset
 	ADDQ.W	#$1,P61_DUMMY_POS
 	ADDQ.W	#$1,P61_LAST_POS
+	ADD.W	#$0,P61_ROW_INDEX
 	.dontReset:
 	; ## SONG POS RESETS ##
+
+	; ## STEP SEQUENCER ##
+	MOVE.W	P61_rowpos,D7
+	CMP.W	P61_DUMMY_SEQPOS,D7
+	BEQ.S	.dontResetRowPos
+	MOVE.W	D7,P61_DUMMY_SEQPOS
+	MOVE.W	P61_SEQ_POS,D0
+	ADDQ.W	#$1,D0
+	AND.W	#$20,D0
+	MOVE.W	D0,P61_SEQ_POS
+	MOVE.W	P61_ROW_INDEX,D0
+	ADDQ.W	#$1,D0
+	AND.W	#$20,D0
+	MOVE.W	D0,P61_ROW_INDEX
+	.dontResetRowPos:
+	SUBI.W	#63,D7		; NORMALIZE LIVE VALUE
+	NEG.W	D7		; NOW D7 CONTAINS BLOCK ROW
+	; ## STEP SEQUENCER ##
 
 	; ## MOD VISUALIZERS ##########
 	LEA	P61_visuctr0(PC),A0	; which channel? 0-3
@@ -517,58 +538,39 @@ __SCROLL_Y_HALF:
 	RTS
 
 __Y_LFO_EASYING:
-	MOVE.W	Y_EASYING_INDX,D0
+	MOVE.W	Y_EASYING_IDX,D0
 	LEA	Y_EASYING_TBL,A0
 	MOVE.W	(A0,D0.W),D1
 	MOVE.W	D1,Y_EASYING
-	ADDQ.B	#$2,D0
+	ADDQ.W	#$2,D0
 	AND.W	#$7E,D0
-	MOVE.W	D0,Y_EASYING_INDX
+	MOVE.W	D0,Y_EASYING_IDX
 
-	TST.W	D0
-	BEQ.S	__X_LFO_EASYING2
+	;TST.W	D0
+	;BEQ.S	__X_LFO_EASYING2
 	RTS
 
 __X_LFO_EASYING:
-	MOVE.W	X_EASYING_INDX,D0
+	MOVE.W	X_EASYING_IDX,D0
 	LEA	X_EASYING_TBL,A0
 	MOVE.W	(A0,D0.W),D1
-	;SUB.W	#$1,D1
-	;LSR.W	#$1,D1
-	;ADD.W	#$1,D1
 	MOVE.W	D1,X_EASYING
-	;MOVE.B	D1,$DFF180
-	ADDQ.B	#$2,D0
+	ADDQ.W	#$2,D0
 	AND.W	#$7E,D0
-	MOVE.W	D0,X_EASYING_INDX
+	MOVE.W	D0,X_EASYING_IDX
 
 	;TST.W	D0
 	;BEQ.W	__SWAP_ODD_EVEN_PTRS
 	RTS
 
-__X_LFO_EASYING2:
-	MOVE.W	X_EASYING2_INDX,D0
-	LEA	X_EASYING2_TBL,A0
+__LFO_EASYING:
+	MOVE.W	EASYING_IDX,D0
+	LEA	EASYING_TBL,A0
 	MOVE.W	(A0,D0.W),D1
-	MOVE.W	D1,X_EASYING2
-	ADDQ.B	#2,D0
+	MOVE.W	D1,EASYING
+	ADDQ.W	#$2,D0
 	AND.W	#$7E,D0
-	MOVE.W	D0,X_EASYING2_INDX
-
-	TST.W	D0
-	BNE.S	.notSameIndex
-	SUB.W	#1,X_CYCLES_COUNTER
-	TST.W	X_CYCLES_COUNTER
-	BNE.S	.notSameIndex
-	MOVE.W	#6,X_CYCLES_COUNTER	; RESET
-	MOVE.B	X_PROGR_TYPE,D5	; INVERT
-	;NEG.B	D5
-	MOVE.B	D5,X_PROGR_TYPE
-	MOVE.B	X_PROGR_DIR,D5	; INVERT
-	NEG.B	D5
-	MOVE.B	D5,X_PROGR_DIR
-	;MOVE.W	#$0FF2,$DFF180	; show rastertime left down to $12c
-	.notSameIndex:
+	MOVE.W	D0,EASYING_IDX
 	RTS
 
 __DO_HORIZ_TEXTURE:
@@ -602,10 +604,11 @@ __DO_HORIZ_TEXTURE:
 	;## HORIZ TEXTURE ##############
 	RTS
 
-__BLOCK_2:
+__BLK_2:
 	BSR.W	__Y_LFO_EASYING
-__BLOCK_0:
-	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
+__BLK_0:
+	;MOVE.W	P61_ROW_INDEX,$DFF18E
+	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
 	BSR.S	__DO_HORIZ_TEXTURE
 
 	;## SETTINGS #####################
@@ -615,11 +618,13 @@ __BLOCK_0:
 	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
 	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
 	MOVE.L	#-1,D1
-	MOVE.W	#$0,Y_INCREMENT
 	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
 	MOVE.W	#$1,X_EASYING
+	MOVE.W	#$2,Y_EASYING
+
 	;## PERFORM ######################
-	BSR.S	__DO_PLANE_0
+	BSR.W	__DO_PLANE_0
 	;#################################
 
 	;## SETTINGS #####################
@@ -650,9 +655,34 @@ __BLOCK_0:
 	;.DontDo1:
 	RTS
 
-__BLOCK_1:
-	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
+__BLK_1:
+	;MOVE.W	#$0000,$DFF180
+	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
+
+	MOVE.W	#$0,X_INCREMENT
+	CMPI.W	#28,D7			; WORKS STRAIGHT!
+	BLO.S	.Dont
+	;CMPI.W	#63,D7			; WORKS STRAIGHT!
+	;BGE.S	.Dont
+
+	.full:
+	BSR.W	__LFO_EASYING
+	LSR.W	D1
+	MOVE.W	D1,X_EASYING
+	ADD.W	#$2,D1
+	MOVE.W	D1,Y_EASYING
+	;BSR.W	__X_LFO_EASYING
+	BRA.S	.Dont2
+	.Dont:
+
+	;LSL.W	D7
+	;MOVE.W	D7,EASYING_IDX
+	MOVE.W	#$12,EASYING_IDX
+	MOVE.W	#$1,X_EASYING
+	MOVE.W	#$2,Y_EASYING
+	MOVE.W	#$0,X_INCREMENT
+	.Dont2:
 
 	;## SETTINGS #####################
 	MOVE.W	#(X_SLICE)*bypl,D3
@@ -662,8 +692,7 @@ __BLOCK_1:
 	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
 	MOVE.L	#-1,D1
 	MOVE.W	#$0,Y_INCREMENT
-	MOVE.W	#$0,X_INCREMENT
-	MOVE.W	#$1,X_EASYING
+
 	;## PERFORM ######################
 	BSR.S	__DO_PLANE_0
 	;#################################
@@ -672,18 +701,23 @@ __BLOCK_1:
 	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
 	NEG.W	D3
 	;## PERFORM ######################
-	BSR.S	__DO_PLANE_2
+	BSR.S	__DO_PLANE_1
 	;#################################
 
-	TST.W	AUDIOCHLEVEL3
-	BNE.W	.DontDo2
+	;CMPI.W	#60,D7			; D7 SHOULD STILL HOLD P61_rowpos !
+	;BGE.S	.DontDo2
 	;## SETTINGS #####################
 	NEG.W	D3
 	;## PERFORM ######################
-	BSR.S	__DO_PLANE_1
+	BSR.S	__DO_PLANE_2
 	;#################################
-	.DontDo2:
 	RTS
+
+__BLK_3:
+	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
+	BSR.W	__DO_HORIZ_TEXTURE
+	MOVE.W	#$1,X_INCREMENT
+	BRA.W	__BLK_1\.full
 
 __DO_PLANE_0:
 	LEA	BGPLANE0,A3
@@ -838,14 +872,14 @@ __SCROLL_COMBINED:
 	DBRA	D0,.loop
 	RTS
 
-__BLOCK_END:
+__BLK_END:
 	RTS
 
 ;********** Fastmem Data **********
-TIMELINE:		DC.L __BLOCK_0,__BLOCK_1,__BLOCK_1,__BLOCK_1
-		DC.L __BLOCK_2,__BLOCK_2,__BLOCK_2,__BLOCK_2
-		DC.L __BLOCK_0,__BLOCK_0,__BLOCK_0,__BLOCK_0
-		DC.L __BLOCK_0,__BLOCK_0,__BLOCK_0,__BLOCK_0
+TIMELINE:		DC.L __BLK_0,__BLK_1,__BLK_1,__BLK_3
+		DC.L __BLK_1,__BLK_1,__BLK_1,__BLK_1
+		DC.L __BLK_0,__BLK_0,__BLK_0,__BLK_0
+		DC.L __BLK_0,__BLK_0,__BLK_0,__BLK_0
 
 BPL_PTR_BUF:	DC.L 0
 AUDIOCHLEVEL0NRM:	DC.W 0
@@ -858,6 +892,7 @@ P61_DUMMY_POS:	DC.W 0
 P61_FRAMECOUNT:	DC.W 0
 P61_SEQ_POS:	DC.W 0
 P61_DUMMY_SEQPOS:	DC.W 63
+P61_ROW_INDEX:	DC.W 0		; $0-$F
 SCROLL_INDEX:	DC.W 0
 SCROLL_PLANE:	DC.L 0
 SCROLL_SRC:	DC.L 0
@@ -910,25 +945,29 @@ TEXTURERESET6:	DC.L X_TEXTURE_MIRROR+TEXTURE_H*bypl*2
 TEXTURERESET7:	DC.L X_TEXTURE_MIRROR+TEXTURE_H*bwid
 		DC.L X_TEXTURE_MIRROR+TEXTURE_H*bwid
 
-Y_EASYING_INDX:	DC.W 0
+Y_EASYING_IDX:	DC.W 0
 Y_EASYING_TBL:	DC.W $1,$2,$1,$2,$1,$2,$1,$2,$2,$3,$2,$3,$2,$3,$3,$3,$4,$3,$4,$4,$4,$4,$4,$4,$5,$4,$5,$4,$5,$4,$6,$5
 		DC.W $5,$6,$5,$6,$5,$6,$5,$6,$5,$5,$5,$5,$4,$5,$4,$5,$4,$5,$4,$3,$4,$3,$4,$3,$2,$3,$2,$3,$2,$1,$2,$1
 Y_EASYING:	DC.W 15
 
-X_EASYING_INDX:	DC.W 64
+X_EASYING_IDX:	DC.W 0
 X_EASYING_TBL:	DC.W $1,$2,$1,$2,$2,$2,$2,$3,$3,$3,$3,$4,$4,$4,$4,$5,$5,$5,$5,$6,$6,$7,$6,$7,$6,$6,$5,$5,$5,$5,$4,$4
 		DC.W $3,$4,$3,$3,$3,$3,$3,$2,$2,$2,$2,$2,$2,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1
 X_EASYING:	DC.W 1
 
-X_EASYING2_INDX:	DC.W 4
-X_EASYING2_TBL:	DC.W $1,$2,$1,$1,$2,$3,$2,$3,$2,$3,$4,$3,$4,$3,$4,$5,$4,$5,$6,$5,$6,$7,$6,$7,$8,$7,$8,$9,$8,$8,$7,$6
-		DC.W $7,$6,$5,$6,$5,$4,$4,$3,$2,$3,$2,$3,$2,$3,$2,$1,$2,$1,$2,$1,$2,$1,$2,$1,$2,$1,$1,$1,$1,$1,$1,$1
-X_EASYING2:	DC.W 1
+EASYING_IDX:	DC.W 4
+EASYING_TBL:	DC.W $1,$2,$1,$2,$1,$2,$2,$2,$3,$2,$3,$3,$4,$3,$4,$3,$4,$3,$4,$5,$4,$5,$4,$5,$5,$4,$5,$6,$5,$6,$5,$6
+		DC.W $5,$5,$4,$4,$4,$3,$4,$3,$3,$3,$2,$3,$2,$2,$2,$2,$1,$2,$1,$2,$1,$2,$1,$2,$1,$2,$1,$2,$1,$2,$1,$2
+EASYING:		DC.W 0
 
 	;*******************************************************************************
 	SECTION	ChipData,DATA_C	;declared data that must be in chipmem
 	;*******************************************************************************
 
+BLUE_TBL:		DC.W $0002,$0004,$0007,$0009,$000B,$000C,$000E,$000F	; BLUE
+PURPL_TBL:	DC.W $0004,$0205,$0205,$0406,$0507,$0708,$0808,$0908	; PURPLE
+MAIN_TBL:		DC.W $0004,$0006,$0207,$0407,$0607,$0907,$0D07,$0F06	; MAIN
+MIXED_TBL:	DC.W $0000,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
 MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"	; code $960F
@@ -948,8 +987,8 @@ COPPER:
 	;DC.W $0180,$0004,$0182,$0006,$0184,$0207,$0186,$0407
 	;DC.W $0188,$0607,$018A,$0907,$018C,$0D07,$018E,$0F06
 
-	DC.W $0180,$0003,$0182,$0005,$0184,$0007,$0186,$0009
-	DC.W $0188,$000B,$018A,$000D,$018C,$000F,$018E,$020F
+	;DC.W $0180,$0003,$0182,$0005,$0184,$0007,$0186,$0009
+	;DC.W $0188,$000B,$018A,$000D,$018C,$000F	;,$018E,$020F
 
 	;DC.W $0180,$0003,$0182,$0104,$0184,$0106,$0186,$0207
 	;DC.W $0188,$0209,$018A,$030B,$018C,$030D,$018E,$040E
