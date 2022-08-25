@@ -2435,7 +2435,6 @@ P61_loscont:
 	move P61_jtab(PC,d0),d0
 	jmp P61_jtab(PC,d0)
 P61_fxdone:
-	;CLR.W	$100		; DEBUG | w 0 100 2
 	;move.w P61_SN_Note(a5),d0
 	;move.w d0,P61_KONEY-P61_cn(a3)
 	moveq #$7e,d0
@@ -2597,15 +2596,16 @@ P61_nonewpatt:
 	rts
 	ifne useinsnum
 P61_setCurINS:	; ## KONEY ##
+	;CLR.W	$100		; DEBUG | w 0 100 2
 	MOVE.W	P61_SN_Note(A5),D0
-	AND.W	#$00F0,D0	; MASK SECOND NIBBLE
-	ROR.W	#4,D0		; MSB of sample #
+	AND.W	#$01F0,D0		; MASK 2ND NIBBLE + 2 BIT
+	LSR.W	#$4,D0		; MSB of sample #
 	MOVE.W	#P61_CH3_INS-P61_cn,D2
 	ADD.W	D5,D2		; D5 = TRACK# 3-0
 	ADD.W	D5,D2		; TWO ADDS ARE FASTER THAN MULU :)
-	MOVE.w	D0,(A3,D2.W)
+	MOVE.W	D0,(A3,D2.W)
 	BRA.W	P61_fxdone
-	endc		; ## KONEY ##
+	endc			; ## KONEY ##
 	ifne use1Fx
 P61_Trigger:
 	move.b	P61_Info(a5),d0
@@ -3086,7 +3086,7 @@ P61_vib2:
 	bmi.b .vibneg
 	add d2,d1
 	bra.b P61_vib4
-.vibneg:	sub d2,d1
+.vibneg: sub d2,d1
 P61_vib4:
 	move d1,6(a4)
 	move.b P61_VibCmd(a5),d0
@@ -3320,8 +3320,8 @@ P61_temp3:
 	dcb.b Channel_Block_Size-2,0
 	dc 8
 	ifne split4
-P61_temp0copy:	dcb.b P61_Wave+4,0
-P61_temp1copy:	dcb.b P61_Wave+4,0
+P61_temp0copy: dcb.b P61_Wave+4,0
+P61_temp1copy: dcb.b P61_Wave+4,0
 	endc
 P61_cn:
 	dc 0
@@ -3525,35 +3525,35 @@ P61_cianame:
 	dc.b 'ciab.resource',0
 P61_timeropen:
 	dc.b 0
-P61_timerint:	dc.b 'P61_TimerInterrupt',0,0
+P61_timerint: dc.b 'P61_TimerInterrupt',0,0
 	endc
-P61_InitPos:	dc.w 0
+P61_InitPos: dc.w 0
 	ifne use1Fx
-P61_PTrig:	dc.w 0	;Poll this Custom trigger, using 'Bxx',pos $80-$ff
-P61_1F:		dc.w 0
+P61_PTrig: dc.w 0	;Poll this Custom trigger, using 'Bxx',pos $80-$ff
+P61_1F:	 dc.w 0
 	endc
 	ifne useinsnum
-P61_CH3_INS:	DC.W 0	; here sample # are stored to use outside
-P61_CH2_INS:	DC.W 0
-P61_CH1_INS:	DC.W 0
-P61_CH0_INS:	DC.W 0
+P61_CH3_INS: DC.W 0	; here sample # are stored to use outside
+P61_CH2_INS: DC.W 0
+P61_CH1_INS: DC.W 0
+P61_CH0_INS: DC.W 0
 	endc
 	ifne nowaveforms
-P61_NewDMA:	dc.w 0
+P61_NewDMA: dc.w 0
 	endc
 	ifne copdma
-p61_DMApokeAddr:	dc.l 0
+p61_DMApokeAddr: dc.l 0
 	endc
-P61_PattFlag:	dc.w 0
+P61_PattFlag: dc.w 0
 P61_etu:
 	ifne quietstart
-P61_Quiet:	dc.w 0
+P61_Quiet: dc.w 0
 	endc
 	ifne visuctrs
-P61_visuctr0:	dc.w $4000
-P61_visuctr1:	dc.w $4000
-P61_visuctr2:	dc.w $4000
-P61_visuctr3:	dc.w $4000
+P61_visuctr0: dc.w $4000
+P61_visuctr1: dc.w $4000
+P61_visuctr2: dc.w $4000
+P61_visuctr3: dc.w $4000
 	endc
 P61E:
 samples:
