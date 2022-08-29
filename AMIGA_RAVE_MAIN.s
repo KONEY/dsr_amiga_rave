@@ -135,7 +135,7 @@ MainLoop:
 	;MOVE.W	P61_LAST_POS,D5
 	;CLR.W	$100		; DEBUG | w 0 100 2
 	MOVE.W	P61_Pos,D5
-	;MOVE.W	#$7,D5
+	;MOVE.W	#$0,D5
 	LEA	TIMELINE,A3
 	ADD.W	D5,D5		; CALCULATES OFFSET (OPTIMIZED)
 	ADD.W	D5,D5		; CALCULATES OFFSET (OPTIMIZED)
@@ -215,6 +215,22 @@ __SWAP_ODD_EVEN_PTRS:
 	MOVE.W	4(A1),(A0)
 	MOVE.W	4(A1),4(A0)
 	MOVE.W	(A1),4(A1)
+	RTS
+
+__SPLIT_COPPER_HALF:
+	LEA	COPPER\.Waits+6,A0
+	MOVE.W	#0,(A0)
+	MOVE.W	#0,4(A0)
+	MOVE.W	#-80,12(A0)
+	MOVE.W	#-80,16(A0)
+	RTS
+
+__SPLIT_COPPER_QUARTER:
+	LEA	COPPER\.Waits+6,A0
+	MOVE.W	#-80,(A0)
+	MOVE.W	#-80,4(A0)
+	MOVE.W	#0,12(A0)
+	MOVE.W	#0,16(A0)
 	RTS
 
 __SET_PT_VISUALS:
@@ -305,7 +321,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#7,D0
+	MOVE.B	#10,D0
 	;MOVE.W	D0,P61_DUMMY_POS
 	;MOVE.W	D0,P61_LAST_POS
 	LEA	$DFF000,A6
@@ -427,7 +443,14 @@ __EXPAND_PIXELS:
 	LSR.B	#$4,D0		; ALIGN WITH OTHER BITS
 	SWAP	D0
 	ADD.L	#$4,A3		; NEXT LINE. EACH LINE 20 + PADDING
+
+	;BTST	#$0,D0
+	;BNE.S	.dontDither
+	;OR.W	D2,D0
+	;ROL.L	#$1,D0
+	.dontDither:
 	OR.L	D2,D0		; COMBINE TEXTURE WITH MOCKED BITS
+	;AND.L	D2,D0		; COMBINE TEXTURE WITH MOCKED BITS
 
 	MOVEQ	#$A,D4		; 20 PIXEL, 2 BITS AT THE TIME = 10
 	.lineLoop:
@@ -455,7 +478,7 @@ __EXPAND_PIXELS:
 	DBRA	D4,.lineLoop
 
 	ROR.L	#$1,D2		; NEXT TWO PIXELS
-	NOT	D2
+	;NOT	D2
 	SWAP	D2
 
 	LEA	18(A4),A4
@@ -572,7 +595,7 @@ __LFO_EASYING:
 	MOVE.W	(A0,D0.W),D1
 	MOVE.W	D1,128(A0)
 	ADDQ.W	#$2,D0
-	AND.W	#$7E,D0
+	AND.W	#$7F,D0
 	MOVE.W	D0,-2(A0)
 
 	;TST.W	D0
@@ -754,10 +777,11 @@ __BLK_4:
 	BLO.S	.Dont
 	LSL.W	#$4,D1
 	_PushColorsDOWN	PURPL_TBL,D1
-	LEA	Z_EASYING_TBL,A0
-	BSR.W	__LFO_EASYING
+	;LEA	Z_EASYING_TBL,A0
+	;BSR.W	__LFO_EASYING
 	LEA	Y_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
+	BSR.W	__SPLIT_COPPER_QUARTER
 	BRA.S	.Dont2
 	.Dont:
 	LSL.W	#$4,D1
@@ -806,6 +830,12 @@ __BLK_4:
 	RTS
 
 __BLK_5:
+	TST.W	D7
+	BNE.S	.noColorReset
+	_PushColorsUP	MAIN_TBL,#$0
+	BSR.W	__SPLIT_COPPER_HALF
+	.noColorReset:
+	MOVE.W	#$1,X_EASYING
 	MOVE.W	#$1,Y_EASYING
 	MOVE.W	Y_EASYING,Y_HALF_SHIFT
 	BSR.W	__DO_HORIZ_TEXTURE
@@ -824,6 +854,108 @@ __BLK_5:
 	BSR.W	__DO_PLANE_0
 	;#################################
 
+	MOVE.W	P61_CH2_INS,D7		; NEW VALUES FROM P61
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+
+	;CMP.B	#$12,D7
+	;BEQ.S	.DontDo3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;MOVE.W	#$0,X_EASYING_IDX
+	;#################################
+	;.DontDo3:
+
+	CMP.B	#$11,D7
+	BEQ.S	.DontDo1
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+	;MOVE.W	#$0,X_EASYING_IDX
+	.DontDo1:
+
+	;LEA	X_EASYING_TBL,A0
+	;BSR.W	__LFO_EASYING
+	.DontDo2:
+	RTS
+
+__BLK_6:
+	MOVE.W	#$1,X_EASYING
+	MOVE.W	#$1,Y_EASYING
+	;MOVE.W	Y_EASYING,Y_HALF_SHIFT
+	BSR.W	__DO_HORIZ_TEXTURE
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+
+	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$1,Y_INCREMENT
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	MOVE.W	P61_CH2_INS,D7		; NEW VALUES FROM P61
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+
+	CMP.B	#$12,D7
+	BEQ.S	.DontDo3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;MOVE.W	#$0,X_EASYING_IDX
+	;#################################
+	.DontDo3:
+
+	CMP.B	#$10,D7
+	BEQ.S	.DontDo1
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+	MOVE.W	#$0,Y_EASYING_IDX
+	MOVE.W	#$C,X_EASYING_IDX
+	.DontDo1:
+
+	;LEA	X_EASYING_TBL,A0
+	;BSR.W	__LFO_EASYING
+	.DontDo2:
+	RTS
+
+__BLK_7:
+	TST.W	P61_visuctr0
+	BNE.S	.noTexture
+	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
+	BSR.W	__DO_HORIZ_TEXTURE
+	.noTexture:
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
+	;MOVE.W	#$1,X_EASYING
+	;MOVE.W	#$1,Y_EASYING
+
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
 	;## SETTINGS #####################
 	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
 	NEG.W	D3
@@ -831,35 +963,28 @@ __BLK_5:
 	BSR.W	__DO_PLANE_1
 	;#################################
 
-	CLR.W	$100		; DEBUG | w 0 100 2
-	MOVE.W	P61_CH2_INS,D7	; NEW VALUES FROM P61
-	CMP.B	#$11,D7
-	BNE.S	.DontDo1
-	MOVE.W	#$0,X_EASYING_IDX
 	;## SETTINGS #####################
 	NEG.W	D3
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
-	.DontDo1:
-	CMP.B	#$10,D7
-	BNE.S	.DontDo2
+
+	;## LONG LFG ##
+	MOVE.B	DUMMY_FRAME_COUNT,D7
+	TST.B	D7
+	BNE.S	.skip
+	LEA	Y_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
 	LEA	X_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
-	.DontDo2:
+	.skip:
+	ADD.B	#$1,D7
+	AND.B	#$3F,D7
+	MOVE.B	D7,DUMMY_FRAME_COUNT
 	RTS
 
-__BLK_5_BROKEN:
-	MOVE.W	AUDIOCHLEVEL2,D7
-	LSL.W	D7
-	MOVE.W	D7,Z_EASYING_IDX
-	LEA	Z_EASYING_TBL,A0
-	BSR.W	__LFO_EASYING
-
-	;LEA	Z_EASYING_TBL,A0
-	;BSR.W	__LFO_EASYING
-
-	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
+__BLK_TEST:
+	MOVE.W	Y_EASYING,Y_HALF_SHIFT		; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
 
 	;## SETTINGS #####################
@@ -871,30 +996,20 @@ __BLK_5_BROKEN:
 	MOVE.L	#-1,D1
 	MOVE.W	#$0,X_INCREMENT
 	MOVE.W	#$0,Y_INCREMENT
-	MOVE.W	#$2,Y_EASYING
-	MOVE.W	#$1,X_EASYING
+	MOVE.W	#$0,X_EASYING
+	MOVE.W	#$1,Y_EASYING
 
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_0
 	;#################################
 
-	TST.W	AUDIOCHLEVEL1
-	BEQ.S	.DontDo
-	MOVE.W	#$0,X_EASYING
-	.DontDo:
-
 	;## SETTINGS #####################
-	BCLR	#$2,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
 	NEG.W	D3
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_1
 	;#################################
 
-	TST.W	AUDIOCHLEVEL3
-	BEQ.S	.DontDo2
-	MOVE.W	#$1,X_EASYING
-	MOVE.W	#$1,X_INCREMENT
-	.DontDo2:
 	;## SETTINGS #####################
 	NEG.W	D3
 	;## PERFORM ######################
@@ -1053,10 +1168,10 @@ __BLK_END:
 	RTS
 
 ;********** Fastmem Data **********
-TIMELINE:		DC.L __BLK_0,__BLK_JMP,__BLK_1,__BLK_3
+TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_1,__BLK_1,__BLK_1,__BLK_4
-		DC.L __BLK_5,__BLK_5,__BLK_5,__BLK_5
-		DC.L __BLK_5,__BLK_5,__BLK_5,__BLK_5
+		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
+		DC.L __BLK_7,__BLK_7,__BLK_7,__BLK_7
 		DC.L __BLK_5,__BLK_5,__BLK_5,__BLK_5
 		DC.L __BLK_5,__BLK_5,__BLK_5,__BLK_5
 		DC.L __BLK_0,__BLK_0,__BLK_0,__BLK_0
@@ -1091,7 +1206,7 @@ SCROLL_DIR_1:	DC.B 1
 SCROLL_DIR_2:	DC.B 1
 SCROLL_DIR_3:	DC.B 1
 TEXTINDEX:	DC.W 0
-MOCK:		DC.B 1
+DUMMY_FRAME_COUNT:	DC.B 0
 FRAME_STROBE:	DC.B 0
 BLIT_Y_MASK:	DC.W $FFFF
 BLIT_X_MASK:	DC.W $FFFF
@@ -1136,9 +1251,9 @@ X_EASYING_TBL:	DC.W $1,$2,$1,$2,$2,$2,$2,$3,$3,$3,$3,$4,$4,$4,$4,$5,$5,$5,$5,$6,
 X_EASYING:	DC.W 1
 
 Z_EASYING_IDX:	DC.W 0
-Z_EASYING_TBL:	DC.W $1,$2,$1,$2,$2,$2,$3,$2,$3,$3,$4,$3,$4,$3,$4,$3,$4,$5,$4,$5,$4,$5,$5,$4,$5,$6,$6,$7,$7,$6,$5,$6
-		DC.W $5,$4,$5,$4,$3,$4,$3,$2,$3,$2,$1,$2,$1,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-Z_EASYING:		DC.W 0
+Z_EASYING_TBL:	DC.W $0,$1,$1,$2,$2,$3,$3,$4,$4,$5,$5,$6,$6,$7,$7,$7,$8,$8,$8,$8,$7,$7,$7,$7,$7,$6,$6,$6,$6,$5,$5,$5
+		DC.W $5,$5,$4,$4,$4,$4,$3,$3,$3,$3,$3,$2,$2,$2,$2,$1,$1,$1,$1,$1,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
+Z_EASYING:	DC.W 0
 
 	;*******************************************************************************
 	SECTION	ChipData,DATA_C	;declared data that must be in chipmem
@@ -1181,12 +1296,11 @@ COPPER:
 	DC.W $102,0	; SCROLL REGISTER (AND PLAYFIELD PRI)
 
 	.Palette:
-	;DC.W $0180,$00F0
 	;DC.W $0180,$0004,$0182,$0006,$0184,$0207,$0186,$0407
 	;DC.W $0188,$0607,$018A,$0907,$018C,$0D07,$018E,$0F06
 
 	;DC.W $0180,$0003,$0182,$0005,$0184,$0007,$0186,$0009
-	;DC.W $0188,$000B,$018A,$000D,$018C,$000F	;,$018E,$020F
+	;DC.W $0188,$000B,$018A,$000D,$018C,$000F,$018E,$020F
 
 	;DC.W $0180,$0003,$0182,$0104,$0184,$0106,$0186,$0207
 	;DC.W $0188,$0209,$018A,$030B,$018C,$030D,$018E,$040E
