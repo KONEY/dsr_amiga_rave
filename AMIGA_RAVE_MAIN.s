@@ -168,6 +168,8 @@ MainLoop:
 	BNE.S	.DontShowRasterTime
 
 	BSR.W	__BLK_JMP
+	LEA	X_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
 
 	.DontShowRasterTime:
 	BTST	#2,$DFF016	; POTINP - RMB pressed?
@@ -777,8 +779,6 @@ __BLK_4:
 	BLO.S	.Dont
 	LSL.W	#$4,D1
 	_PushColorsDOWN	PURPL_TBL,D1
-	;LEA	Z_EASYING_TBL,A0
-	;BSR.W	__LFO_EASYING
 	LEA	Y_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
 	BSR.W	__SPLIT_COPPER_QUARTER
@@ -832,7 +832,7 @@ __BLK_4:
 __BLK_5:
 	TST.W	D7
 	BNE.S	.noColorReset
-	_PushColorsUP	MAIN_TBL,#$0
+	_PushColorsDOWN	MAIN_TBL,#$0
 	BSR.W	__SPLIT_COPPER_HALF
 	.noColorReset:
 	MOVE.W	#$1,X_EASYING
@@ -884,6 +884,11 @@ __BLK_5:
 	RTS
 
 __BLK_6:
+	TST.W	D7
+	BNE.S	.noColorReset
+	_PushColorsUP	MAIN_TBL,#$0
+	BSR.W	__SPLIT_COPPER_HALF
+	.noColorReset:
 	MOVE.W	#$1,X_EASYING
 	MOVE.W	#$1,Y_EASYING
 	;MOVE.W	Y_EASYING,Y_HALF_SHIFT
@@ -934,6 +939,12 @@ __BLK_6:
 	RTS
 
 __BLK_7:
+	TST.W	D7
+	BNE.S	.noColorReset
+	_PushColorsDOWN	PURPL_TBL,#$0
+	BSR.W	__SPLIT_COPPER_HALF
+	.noColorReset:
+
 	TST.W	P61_visuctr0
 	BNE.S	.noTexture
 	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
@@ -949,8 +960,6 @@ __BLK_7:
 	MOVE.L	#-1,D1
 	MOVE.W	#$0,X_INCREMENT
 	MOVE.W	#$0,Y_INCREMENT
-	;MOVE.W	#$1,X_EASYING
-	;MOVE.W	#$1,Y_EASYING
 
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_0
@@ -981,6 +990,99 @@ __BLK_7:
 	ADD.B	#$1,D7
 	AND.B	#$3F,D7
 	MOVE.B	D7,DUMMY_FRAME_COUNT
+	RTS
+
+__BLK_8:
+	CMPI.W	#32,D7			; WORKS STRAIGHT!
+	BNE.S	.Dont
+	_PushColorsDOWN	MAIN_TBL,#$0
+	MOVE.W	#$2,X_EASYING
+	MOVE.W	#$3,Y_EASYING
+	MOVE.W	#$1,X_INCREMENT
+	.Dont:
+	
+	TST.W	P61_visuctr0
+	BNE.S	.noTexture
+	MOVE.W	#$F,Y_HALF_SHIFT		; CFG
+	BSR.W	__DO_HORIZ_TEXTURE
+	.noTexture:
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+	;MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
+
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;#################################
+
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+
+	;## LONG LFG ##
+	TST.W	D7
+	BNE.S	.skip
+	MOVE.W	#$8,Y_EASYING_IDX
+	MOVE.W	#$2C,X_EASYING_IDX
+	.skip:
+	RTS
+
+__BLK_9:
+	TST.W	P61_visuctr1
+	BEQ.S	.Dont
+	LEA	X_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	.Dont:
+
+	MOVE.W	#$F,Y_HALF_SHIFT		; CFG
+	BSR.W	__DO_HORIZ_TEXTURE
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+	MOVE.W	#$1,X_INCREMENT
+	MOVE.W	#$1,Y_INCREMENT
+
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;#################################
+
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+
+	LEA	Y_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	;LEA	X_EASYING_TBL,A0
+	;BSR.W	__LFO_EASYING
 	RTS
 
 __BLK_TEST:
@@ -1171,8 +1273,8 @@ __BLK_END:
 TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_1,__BLK_1,__BLK_1,__BLK_4
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
-		DC.L __BLK_7,__BLK_7,__BLK_7,__BLK_7
-		DC.L __BLK_5,__BLK_5,__BLK_5,__BLK_5
+		DC.L __BLK_7,__BLK_7,__BLK_7,__BLK_8
+		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9
 		DC.L __BLK_5,__BLK_5,__BLK_5,__BLK_5
 		DC.L __BLK_0,__BLK_0,__BLK_0,__BLK_0
 
