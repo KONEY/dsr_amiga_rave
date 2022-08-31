@@ -56,14 +56,25 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVE.L	#VBint,$6C(A4)
 	MOVE.W	#%1110000000100000,INTENA
 	MOVE.W	#%1000001111100000,DMACON
-	;*--- clear screens ---*
-	;LEA	SCREEN1,A1
-	;BSR.W	ClearScreen
-	;LEA	SCREEN2,A1
-	;BSR.W	ClearScreen
-	;BSR	WaitBlitter
 	;*--- start copper ---*
-	MOVE.L	#COPPER,COP1LC
+	LEA	PIC,A0
+	LEA	COPPER_PRE\.BplPtrs,A1
+	BSR.W	PokePtrs
+	ADD.L	#bypl*he,A0
+	LEA	COPPER_PRE\.BplPtrs+8,A1
+	BSR.W	PokePtrs
+	ADD.L	#bypl*he,A0
+	LEA	COPPER_PRE\.BplPtrs+16,A1
+	BSR.W	PokePtrs
+	ADD.L	#bypl*he,A0
+	LEA	COPPER_PRE\.BplPtrs+24,A1
+	BSR.W	PokePtrs
+	ADD.L	#bypl*he,A0
+	LEA	COPPER_PRE\.BplPtrs+32,A1
+	BSR.W	PokePtrs
+	BSR.W	WaitEOF			; TO SLOW DOWN :)
+	MOVE.L	#COPPER_PRE,COP1LC
+
 	LEA	BGPLANE0,A0
 	LEA	COPPER\.BplPtrs,A1
 	BSR.W	PokePtrs
@@ -123,6 +134,7 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVE.W	#MODSTART_POS,P61_InitPos	; TRACK START OFFSET
 	JSR	P61_Init
 	MOVEM.L (SP)+,D0-A6
+	MOVE.L	#COPPER,COP1LC
 ;********************  main loop  ********************
 MainLoop:
 	;MOVE.W	#$12C,D0		; No buffering, so wait until raster
@@ -321,7 +333,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#22,D0
+	MOVE.B	#16,D0
 	;MOVE.W	D0,P61_DUMMY_POS
 	;MOVE.W	D0,P61_LAST_POS
 	LEA	$DFF000,A6
@@ -397,7 +409,7 @@ __MIRROR_PLANE:
 	.outerloop:		; NUOVA RIGA
 	MOVE.W	#(bypl/2)-1,D6
 	.innerloop:
-	MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
+	;MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
 	MOVE.B	(A3)+,D5
 
 	MOVE.B	D5,D0
@@ -417,7 +429,7 @@ __FILL_MIRROR_TEXTURE:
 	.outerloop:		; NUOVA RIGA
 	MOVE.W	#(bypl/4)-1,D6	; RESET D6
 	.innerloop:		; LOOP KE CICLA LA BITMAP
-	MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
+	;MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
 
 	CLR.L	D5
 	MOVE.L	(A3),D5
@@ -434,7 +446,8 @@ __EXPAND_PIXELS:
 	MOVE.L	#$AAAAAAAA,D2
 	MOVE.W	#TEXTURE_H/8*bpls-1,D7 ; 40 WORDS, 20PX, xBPL
 	.outerloop:		; NUOVA RIGA
-	MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
+	;MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
+	;BSR.W	WaitEOF		; TO SLOW DOWN :)
 
 	CLR.L	D0
 	MOVE.W	(A3),D0		; FIRST 16 PIXEL
@@ -642,6 +655,7 @@ __BLK_0:
 	LEA	Z_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
 	MOVE.W	D1,X_EASYING
+	MOVE.W	D1,Y_HALF_SHIFT		; CFG
 	LSL.W	#$4,D1
 	_PushColorsDOWN	BLUE_TBL,D1
 	BRA.S	.Dont
@@ -649,7 +663,6 @@ __BLK_0:
 	MOVE.W	#$0,Z_EASYING_IDX
 	.Dont:
 
-	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
 	BSR.S	__DO_HORIZ_TEXTURE
 
 	;## SETTINGS #####################
@@ -680,16 +693,16 @@ __BLK_0:
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
+	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
 	RTS
 
 __BLK_1:
 	CMPI.W	#28,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont
-	;CMPI.W	#63,D7			; WORKS STRAIGHT!
-	;BGE.S	.Dont
 	.full:
 	LEA	Z_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
+	MOVE.W	D1,Y_HALF_SHIFT		; CFG
 	LSL.W	#$4,D1
 	_PushColorsDOWN	BLUE_TBL,D1
 
@@ -700,19 +713,15 @@ __BLK_1:
 	MOVE.W	D1,X_EASYING
 	LEA	Y_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
-	;ADD.W	#$2,D1
 	LSR.W	D1
 	MOVE.W	D1,Y_EASYING
 	BRA.S	.Dont2
 	.Dont:
 
-	;LSL.W	D7
-	;MOVE.W	D7,Z_EASYING_IDX
 	MOVE.W	#$0,Y_EASYING_IDX
 	MOVE.W	#$A,X_EASYING_IDX
 	MOVE.W	#$1,X_EASYING
 	MOVE.W	#$2,Y_EASYING
-	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
 	.Dont2:
 
@@ -737,13 +746,12 @@ __BLK_1:
 	BSR.W	__DO_PLANE_1
 	;#################################
 
-	;CMPI.W	#60,D7			; D7 SHOULD STILL HOLD P61_rowpos !
-	;BGE.S	.DontDo2
 	;## SETTINGS #####################
 	NEG.W	D3
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
+	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
 	RTS
 
 __BLK_3:
@@ -912,8 +920,8 @@ __BLK_6:
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
-	MOVE.W	#$F,Y_EASYING_IDX
-	MOVE.W	#$3F,X_EASYING_IDX
+	MOVE.W	#$0,Y_EASYING_IDX
+	MOVE.W	#$4,X_EASYING_IDX
 	.DontDo1:
 
 	;LEA	X_EASYING_TBL,A0
@@ -930,7 +938,7 @@ __BLK_7:
 
 	TST.W	P61_visuctr0
 	BNE.S	.noTexture
-	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
+	MOVE.W	#$1,Y_HALF_SHIFT	; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
 	.noTexture:
 
@@ -1020,8 +1028,8 @@ __BLK_8:
 	;## LONG LFO ##
 	TST.W	D7
 	BNE.S	.skip
-	MOVE.W	#$10,Y_EASYING_IDX
-	MOVE.W	#$0,X_EASYING_IDX
+	MOVE.W	#$40,Y_EASYING_IDX
+	MOVE.W	#$2,X_EASYING_IDX
 	.skip:
 	RTS
 
@@ -1088,15 +1096,18 @@ __BLK_9:
 	RTS
 
 __BLK_A:
-	LSR.W	D7
-	LSL.W	D7
-	MOVE.W	D7,Y_EASYING_IDX
-	;MOVE.W	D7,X_EASYING_IDX
+	TST.W	D7
+	BNE.S	.noColorReset
 	_PushColorsDOWN	MAIN_TBL,#$0
+	.noColorReset:
+
+	ADD.W	D7,D7
+	MOVE.W	D7,Y_EASYING_IDX
+
 	MOVE.W	P61_CH3_INS,D1		; NEW VALUES FROM P61
 	MOVE.W	D1,P61_CH2_INS
 	CMP.B	#$10,D1
-	BEQ.W	__BLK_9
+	BEQ.W	__BLK_8
 	CMP.B	#$11,D1
 	BEQ.W	__BLK_7
 	CMP.B	#$12,D1
@@ -1104,7 +1115,7 @@ __BLK_A:
 	RTS
 
 __BLK_TEST:
-	MOVE.W	Y_EASYING,Y_HALF_SHIFT		; CFG
+	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
 
 	;## SETTINGS #####################
@@ -1116,7 +1127,7 @@ __BLK_TEST:
 	MOVE.L	#-1,D1
 	MOVE.W	#$0,X_INCREMENT
 	MOVE.W	#$0,Y_INCREMENT
-	MOVE.W	#$0,X_EASYING
+	MOVE.W	#$1,X_EASYING
 	MOVE.W	#$1,Y_EASYING
 
 	;## PERFORM ######################
@@ -1135,6 +1146,22 @@ __BLK_TEST:
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
+
+	;CMPI.W	#16,D7		; WORKS STRAIGHT!
+	;BNE.S	.Skip
+	;LEA	TEXTURERESET6,A0
+	;MOVE.L	(A0),4(A0)
+	;.Skip:
+	;CMPI.W	#17,D7		; WORKS STRAIGHT!
+	;BNE.S	.Skip2
+	;LEA	TEXTURERESET7,A0
+	;MOVE.L	(A0),4(A0)
+	;.Skip2:
+	;CMPI.W	#19,D7		; WORKS STRAIGHT!
+	;BNE.S	.Skip3
+	;LEA	TEXTURERESET5,A0
+	;MOVE.L	(A0),4(A0)
+	;.Skip3:
 	RTS
 
 __DO_PLANE_0:
@@ -1289,7 +1316,7 @@ __BLK_END:
 
 ;********** Fastmem Data **********
 TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
-		DC.L __BLK_1,__BLK_1,__BLK_1,__BLK_4
+		DC.L __BLK_0,__BLK_1,__BLK_0,__BLK_4
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 		DC.L __BLK_7,__BLK_7,__BLK_7,__BLK_8
 		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9
@@ -1301,7 +1328,6 @@ TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
-
 
 BPL_PTR_BUF:	DC.L 0
 AUDIOCHLEVEL0NRM:	DC.W 0
@@ -1410,6 +1436,7 @@ MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
 MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"	; code $960F
+PIC:		INCBIN "intro_colorfix.raw"
 
 COPPER:
 	DC.W $1FC,0	; Slow fetch mode, remove if AGA demo.
@@ -1504,7 +1531,56 @@ COPPER:
 	DC.W $3501,$FF00	; ## RASTER END ## #$12C?
 	DC.W $009A,$0010	; CLEAR RASTER BUSY FLAG
 	DC.W $FFFF,$FFFE	; magic value to end copperlist
-_COPPER:
+
+COPPER_PRE:
+	DC.W $1FC,0	; Slow fetch mode, remove if AGA demo.
+	DC.W $8E,$2C81	; 238h display window top, left | DIWSTRT - 11.393
+	DC.W $90,$2CC1	; and bottom, right.	| DIWSTOP - 11.457
+	DC.W $92,$38	; Standard bitplane dma fetch start
+	DC.W $94,$D0	; and stop for standard screen.
+	DC.W $106,$0C00	; (AGA compat. if any Dual Playf. mode)
+	DC.W $108,0	; BPL1MOD	 Bitplane modulo (odd planes)
+	DC.W $10A,0	; BPL2MOD Bitplane modulo (even planes)
+	DC.W $102,0	; SCROLL REGISTER (AND PLAYFIELD PRI)
+
+	.Palette:
+	DC.W $0180,$0102,$0182,$0001,$0184,$0103,$0186,$0113
+	DC.W $0188,$0114,$018A,$0126,$018C,$005D,$018E,$009F
+	DC.W $0190,$00CF,$0192,$0300,$0194,$0214,$0196,$0321
+	DC.W $0198,$0314,$019A,$0238,$019C,$0258,$019E,$025A
+	DC.W $01A0,$017F,$01A2,$0421,$01A4,$0426,$01A6,$0436
+	DC.W $01A8,$01EF,$01AA,$0623,$01AC,$0538,$01AE,$0558
+	DC.W $01B0,$0832,$01B2,$074A,$01B4,$066A,$01B6,$0967
+	DC.W $01B8,$0A8B,$01BA,$099F,$01BC,$0000,$01BE,$0000
+
+	.BplPtrs:
+	DC.W $E0,0
+	DC.W $E2,0
+	DC.W $E4,0
+	DC.W $E6,0
+	DC.W $E8,0
+	DC.W $EA,0
+	DC.W $EC,0
+	DC.W $EE,0
+	DC.W $F0,0
+	DC.W $F2,0
+	DC.W $F4,0
+	DC.W $F6,0		;full 6 ptrs, in case you increase bpls
+	DC.W $100,(bpls+2)*$1000+$200	;enable bitplanes
+
+	.SpritePointers:
+	DC.W $120,0,$122,0	; 0
+	DC.W $124,0,$126,0	; 1
+	DC.W $128,0,$12A,0	; 2
+	DC.W $12C,0,$12E,0	; 3
+	DC.W $130,0,$132,0	; 4
+	DC.W $134,0,$136,0	; 5
+	DC.W $138,0,$13A,0	; 6
+	DC.W $13C,0,$13E,0	; 7
+	DC.W $FFDF,$FFFE	; allow VPOS>$ff
+	DC.W $3501,$FF00	; ## RASTER END ## #$12C?
+	DC.W $009A,$0010	; CLEAR RASTER BUSY FLAG
+	DC.W $FFFF,$FFFE	; magic value to end copperlist
 
 ;*******************************************************************************
 	SECTION ChipBuffers,BSS_C	;BSS doesn't count toward exe size
