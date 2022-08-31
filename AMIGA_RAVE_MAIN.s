@@ -168,8 +168,6 @@ MainLoop:
 	BNE.S	.DontShowRasterTime
 
 	BSR.W	__BLK_JMP
-	LEA	X_EASYING_TBL,A0
-	BSR.W	__LFO_EASYING
 
 	.DontShowRasterTime:
 	BTST	#2,$DFF016	; POTINP - RMB pressed?
@@ -323,7 +321,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#10,D0
+	MOVE.B	#22,D0
 	;MOVE.W	D0,P61_DUMMY_POS
 	;MOVE.W	D0,P61_LAST_POS
 	LEA	$DFF000,A6
@@ -644,7 +642,6 @@ __BLK_0:
 	LEA	Z_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
 	MOVE.W	D1,X_EASYING
-	;SUB.W	#$1,D1
 	LSL.W	#$4,D1
 	_PushColorsDOWN	BLUE_TBL,D1
 	BRA.S	.Dont
@@ -678,25 +675,11 @@ __BLK_0:
 	BSR.W	__DO_PLANE_1
 	;#################################
 
-	;BTST	#6,$BFE001
-	;TST.W	AUDIOCHLEVEL3
-	;BEQ.S	.DontDo3
-
 	;## SETTINGS #####################
 	NEG.W	D3
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
-
-	;TST.W	AUDIOCHLEVEL1
-	;BEQ.W	.DontDo2
-	;BSR.W	__LFO_EASYING
-	;.DontDo2:
-	;.DontDo3:
-	;TST.W	P61_SEQ_POS
-	;BNE.S	.DontDo1
-	;BSR.W	__LFO_EASYING
-	;.DontDo1:
 	RTS
 
 __BLK_1:
@@ -929,8 +912,8 @@ __BLK_6:
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
-	MOVE.W	#$0,Y_EASYING_IDX
-	MOVE.W	#$C,X_EASYING_IDX
+	MOVE.W	#$F,Y_EASYING_IDX
+	MOVE.W	#$3F,X_EASYING_IDX
 	.DontDo1:
 
 	;LEA	X_EASYING_TBL,A0
@@ -978,7 +961,7 @@ __BLK_7:
 	BSR.W	__DO_PLANE_2
 	;#################################
 
-	;## LONG LFG ##
+	;## LONG LFO ##
 	MOVE.B	DUMMY_FRAME_COUNT,D7
 	TST.B	D7
 	BNE.S	.skip
@@ -1034,23 +1017,40 @@ __BLK_8:
 	BSR.W	__DO_PLANE_2
 	;#################################
 
-	;## LONG LFG ##
+	;## LONG LFO ##
 	TST.W	D7
 	BNE.S	.skip
-	MOVE.W	#$8,Y_EASYING_IDX
-	MOVE.W	#$2C,X_EASYING_IDX
+	MOVE.W	#$10,Y_EASYING_IDX
+	MOVE.W	#$0,X_EASYING_IDX
 	.skip:
 	RTS
 
 __BLK_9:
-	TST.W	P61_visuctr1
-	BEQ.S	.Dont
+	TST.W	D7
+	BNE.S	.noCopperChange
+	BSR.W	__SPLIT_COPPER_QUARTER
+	.noCopperChange:
+
+	TST.W	P61_visuctr0
+	BEQ.S	.Dont0
+	LEA	Y_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	MOVE.W	#$1,X_INCREMENT
+	.Dont0:
+
+	TST.W	P61_visuctr3
+	BEQ.S	.Dont1
 	LEA	X_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
-	.Dont:
+	MOVE.W	#$0,X_INCREMENT
+	.Dont1:
 
-	MOVE.W	#$F,Y_HALF_SHIFT		; CFG
+	TST.W	AUDIOCHLEVEL2
+	BEQ.S	.Dont2
+	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
+	MOVE.W	#$0,X_INCREMENT
+	.Dont2:
 
 	;## SETTINGS #####################
 	MOVE.W	#(X_SLICE)*bypl,D3
@@ -1059,7 +1059,7 @@ __BLK_9:
 	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
 	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
 	MOVE.L	#-1,D1
-	MOVE.W	#$1,X_INCREMENT
+	;MOVE.W	#$1,X_INCREMENT
 	MOVE.W	#$1,Y_INCREMENT
 
 	;## PERFORM ######################
@@ -1079,10 +1079,28 @@ __BLK_9:
 	BSR.W	__DO_PLANE_2
 	;#################################
 
-	LEA	Y_EASYING_TBL,A0
-	BSR.W	__LFO_EASYING
+	;ADD.W	D7,D7
+	;MOVE.W	D7,Y_EASYING_IDX
+	;LEA	Y_EASYING_TBL,A0
+	;BSR.W	__LFO_EASYING
 	;LEA	X_EASYING_TBL,A0
 	;BSR.W	__LFO_EASYING
+	RTS
+
+__BLK_A:
+	LSR.W	D7
+	LSL.W	D7
+	MOVE.W	D7,Y_EASYING_IDX
+	;MOVE.W	D7,X_EASYING_IDX
+	_PushColorsDOWN	MAIN_TBL,#$0
+	MOVE.W	P61_CH3_INS,D1		; NEW VALUES FROM P61
+	MOVE.W	D1,P61_CH2_INS
+	CMP.B	#$10,D1
+	BEQ.W	__BLK_9
+	CMP.B	#$11,D1
+	BEQ.W	__BLK_7
+	CMP.B	#$12,D1
+	BEQ.W	__BLK_9
 	RTS
 
 __BLK_TEST:
@@ -1275,8 +1293,15 @@ TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 		DC.L __BLK_7,__BLK_7,__BLK_7,__BLK_8
 		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9
-		DC.L __BLK_5,__BLK_5,__BLK_5,__BLK_5
-		DC.L __BLK_0,__BLK_0,__BLK_0,__BLK_0
+		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9
+		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
+		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
+		DC.L __BLK_1,__BLK_1,__BLK_1,__BLK_1
+		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
+		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
+		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
+		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
+
 
 BPL_PTR_BUF:	DC.L 0
 AUDIOCHLEVEL0NRM:	DC.W 0
@@ -1348,8 +1373,8 @@ Y_EASYING_TBL:	DC.W $1,$2,$1,$2,$1,$2,$1,$2,$2,$3,$2,$3,$2,$3,$3,$3,$4,$3,$4,$4,
 Y_EASYING:	DC.W 1
 
 X_EASYING_IDX:	DC.W 0
-X_EASYING_TBL:	DC.W $1,$2,$1,$2,$2,$2,$2,$3,$3,$3,$3,$4,$4,$4,$4,$5,$5,$5,$5,$6,$6,$7,$6,$7,$6,$6,$5,$5,$5,$5,$4,$4
-		DC.W $3,$4,$3,$3,$3,$3,$3,$2,$2,$2,$2,$2,$2,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1
+X_EASYING_TBL:	DC.W $1,$2,$1,$2,$2,$2,$2,$3,$3,$3,$4,$3,$4,$4,$4,$4,$5,$4,$5,$5,$6,$5,$6,$6,$7,$6,$5,$5,$4,$5,$4,$4
+		DC.W $4,$3,$4,$3,$4,$3,$4,$3,$4,$3,$3,$3,$3,$2,$3,$2,$3,$2,$3,$2,$2,$2,$1,$2,$1,$2,$1,$2,$1,$1,$1,$1
 X_EASYING:	DC.W 1
 
 Z_EASYING_IDX:	DC.W 0
@@ -1380,8 +1405,8 @@ PURPL_TBL:	DC.W $0003,$0205,$0205,$0406,$0507,$0708,$0808,$0908	; PURPLE
 		DC.W $0003,$0006,$0205,$0407,$0607,$0807,$0C07,$0D06
 		DC.W $0003,$0006,$0206,$0406,$0507,$0907,$0D07,$0E06
 
-MAIN_TBL:		DC.W $0004,$0006,$0207,$0407,$0607,$0907,$0D07,$0F06	; MAIN
-MIXED_TBL:	DC.W $0000,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
+MAIN_TBL:		DC.W $0003,$0006,$0207,$0407,$0607,$0907,$0D07,$0F06	; MAIN
+MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
 MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"	; code $960F
