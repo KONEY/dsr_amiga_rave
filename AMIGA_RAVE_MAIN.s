@@ -118,13 +118,14 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	_PushColorsDown	BLUE_TBL,#$0
 	; ## CPU COPPER :) ##
 
-	;BSR.W	__LFO_EASYING
 	BSR.W	__SWAP_ODD_EVEN_PTRS
 	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
 
 	; #### Point LOGO sprites
 	BSR.W	__POKE_SPRITE_POINTERS
 	; #### Point LOGO sprites
+
+	MOVE.L	#COPPER,COP1LC
 
 	; ---  Call P61_Init  ---
 	MOVEM.L	D0-A6,-(SP)
@@ -134,7 +135,7 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVE.W	#MODSTART_POS,P61_InitPos	; TRACK START OFFSET
 	JSR	P61_Init
 	MOVEM.L (SP)+,D0-A6
-	MOVE.L	#COPPER,COP1LC
+
 ;********************  main loop  ********************
 MainLoop:
 	;MOVE.W	#$12C,D0		; No buffering, so wait until raster
@@ -333,7 +334,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#16,D0
+	MOVE.B	#22,D0
 	;MOVE.W	D0,P61_DUMMY_POS
 	;MOVE.W	D0,P61_LAST_POS
 	LEA	$DFF000,A6
@@ -1039,26 +1040,26 @@ __BLK_9:
 	BSR.W	__SPLIT_COPPER_QUARTER
 	.noCopperChange:
 
-	TST.W	P61_visuctr0
-	BEQ.S	.Dont0
-	LEA	Y_EASYING_TBL,A0
-	BSR.W	__LFO_EASYING
-	MOVE.W	#$1,X_INCREMENT
-	.Dont0:
-
-	TST.W	P61_visuctr3
-	BEQ.S	.Dont1
-	LEA	X_EASYING_TBL,A0
-	BSR.W	__LFO_EASYING
-	MOVE.W	#$0,X_INCREMENT
-	.Dont1:
-
 	TST.W	AUDIOCHLEVEL2
 	BEQ.S	.Dont2
 	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
 	MOVE.W	#$0,X_INCREMENT
 	.Dont2:
+	
+	TST.W	P61_visuctr0
+	BEQ.S	.Dont0
+	LEA	Y_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	MOVE.W	#$1,X_INCREMENT
+	.Dont0:
+	
+	TST.W	P61_visuctr3
+	BEQ.S	.Dont1
+	LEA	X_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	MOVE.W	#$0,X_INCREMENT
+	.Dont1:
 
 	;## SETTINGS #####################
 	MOVE.W	#(X_SLICE)*bypl,D3
@@ -1096,6 +1097,60 @@ __BLK_9:
 	RTS
 
 __BLK_A:
+	MOVE.W	P61_CH0_INS,D1		; NEW VALUES FROM P61
+	CMP.B	#$17,D1
+	BNE.S	.noTexture
+	;MOVE.W	#$2,Y_HALF_SHIFT
+	;BSR.W	__DO_HORIZ_TEXTURE
+	MOVE.W	#$0,X_EASYING_IDX
+	MOVE.W	#$2,Y_EASYING_IDX
+	.noTexture:
+
+	TST.W	D7
+	BNE.S	.noColorReset
+	_PushColorsDOWN	MIXED_TBL,#$0
+	BSR.W	__SPLIT_COPPER_QUARTER
+	.noColorReset:
+
+	LEA	X_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	LEA	Y_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	LSR.W	D1
+	MOVE.W	D1,Y_EASYING
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+
+	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	MOVE.W	#$1,Y_INCREMENT
+	ANDI.B	#$1,D7
+	;## PERFORM ######################
+	BEQ.W	__DO_PLANE_1		; IF THE RESULT WAS ZERO, THE Z FLAG IS SET, AND BEQ JUMPS.
+	;## SETTINGS #####################
+
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+	MOVE.W	#$C,X_EASYING_IDX
+	RTS
+
+__BLK_B:
 	TST.W	D7
 	BNE.S	.noColorReset
 	_PushColorsDOWN	MAIN_TBL,#$0
@@ -1107,11 +1162,50 @@ __BLK_A:
 	MOVE.W	P61_CH3_INS,D1		; NEW VALUES FROM P61
 	MOVE.W	D1,P61_CH2_INS
 	CMP.B	#$10,D1
-	BEQ.W	__BLK_8
+	BEQ.W	__BLK_A_BIS
 	CMP.B	#$11,D1
-	BEQ.W	__BLK_7
+	BEQ.W	__BLK_7\.noColorReset
 	CMP.B	#$12,D1
 	BEQ.W	__BLK_9
+	RTS
+
+__BLK_A_BIS:
+	LEA	X_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	LEA	Y_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	LSR.W	D1
+	MOVE.W	D1,Y_EASYING
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+
+	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	MOVE.W	#$1,Y_INCREMENT
+	ANDI.B	#$1,D7
+	;## PERFORM ######################
+	BEQ.W	__DO_PLANE_1		; IF THE RESULT WAS ZERO, THE Z FLAG IS SET, AND BEQ JUMPS.
+	;## SETTINGS #####################
+
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+	MOVE.W	#$C,X_EASYING_IDX
 	RTS
 
 __BLK_TEST:
@@ -1320,9 +1414,9 @@ TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 		DC.L __BLK_7,__BLK_7,__BLK_7,__BLK_8
 		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9
-		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9
-		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
-		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
+		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9\.Dont0
+		DC.L __BLK_A\.noTexture,__BLK_A,__BLK_A,__BLK_A
+		DC.L __BLK_B,__BLK_B,__BLK_B,__BLK_B
 		DC.L __BLK_1,__BLK_1,__BLK_1,__BLK_1
 		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
 		DC.L __BLK_A,__BLK_A,__BLK_A,__BLK_A
@@ -1422,12 +1516,12 @@ BLUE_TBL:		DC.W $0002,$0004,$0007,$0009,$000B,$000C,$000E,$000F	; BLUE
 		DC.W $0002,$0305,$0306,$0306,$0407,$0508,$0A09,$0B09
 		DC.W $0002,$0305,$0205,$0406,$0507,$0608,$0B08,$0A08
 
-PURPL_TBL:	DC.W $0003,$0205,$0205,$0406,$0507,$0708,$0808,$0908	; PURPLE
+PURPL_TBL:	DC.W $0003,$0305,$0205,$0406,$0507,$0708,$0808,$0908	; PURPLE
 		DC.W $0003,$0205,$0206,$0406,$0507,$0708,$0908,$0908
 		DC.W $0003,$0205,$0205,$0407,$0507,$0708,$0908,$0A08
 		DC.W $0003,$0105,$0206,$0406,$0507,$0708,$0A08,$0A07
 		DC.W $0003,$0105,$0205,$0407,$0607,$0808,$0B08,$0B07
-		DC.W $0003,$0005,$0206,$0406,$0507,$0807,$0C08,$0C06
+		DC.W $0003,$0105,$0206,$0406,$0507,$0807,$0C08,$0C06
 		DC.W $0003,$0006,$0205,$0407,$0607,$0807,$0C07,$0D06
 		DC.W $0003,$0006,$0206,$0406,$0507,$0907,$0D07,$0E06
 
