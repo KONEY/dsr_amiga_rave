@@ -18,7 +18,7 @@ hband		EQU 10		; lines reserved for textscroller
 hblit		EQU he/2		;-hband	; size of blitter op without textscroller
 wblit		EQU wi/2/16*2
 bypl_real		EQU wi/16*2
-TEXTURE_H		EQU 640+320	; EQU he*(bpls+2)
+TEXTURE_H		EQU 196		; 640+320
 X_2X_SLICE	EQU 9
 X_SLICE		EQU 26
 Y_SLICE		EQU 32
@@ -1235,6 +1235,10 @@ __BLK_MULTI:
 	MOVE.W	P61_visuctr2,D1
 	TST.W	D1
 	BEQ.W	__BLK_8\.noTexture		; ON 1ST FRAME ONLY DO...
+	CMPI.W	#32,D7			; WORKS STRAIGHT!
+	BEQ.W	__SPLIT_COPPER_HALF
+	CMPI.W	#40,D7			; WORKS STRAIGHT!
+	BEQ.W	__SPLIT_COPPER_QUARTER
 	RTS
 	.Dont:
 
@@ -1248,8 +1252,8 @@ __BLK_MULTI:
 	BEQ.W	__BLK_A_BIS
 	CMP.B	#$11,D1
 	BEQ.W	__BLK_7\.noTexture
-	CMP.B	#$12,D1
-	BEQ.W	__BLK_7
+	;CMP.B	#$12,D1
+	;BRA.W	__BLK_7
 	RTS
 
 __BLK_TEST:
@@ -1523,7 +1527,7 @@ X_PROGR_TYPE:	DC.B 1
 Y_PROGR_TYPE:	DC.B 1		; SOLO POSITIVO
 X_PROGR_SHIFT:	DC.W 1
 
-KICKSTART_ADDR:	DC.L $F80000			; POINTERS TO BITMAPS
+KICKSTART_ADDR:	DC.L $F80000	; POINTERS TO BITMAPS
 TEXTURERESET5:	DC.L X_TEXTURE_MIRROR+TEXTURE_H*bypl
 		DC.L X_TEXTURE_MIRROR+TEXTURE_H*bypl
 TEXTURERESET6:	DC.L X_TEXTURE_MIRROR+TEXTURE_H*bypl*2
@@ -1580,7 +1584,7 @@ MAIN_TBL:		DC.W $0003,$0006,$0207,$0407,$0607,$0907,$0D07,$0F06	; MAIN
 MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
-MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"	; code $960F
+MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"		; code $960F
 PIC:		INCBIN "intro_colorfix.raw"
 
 COPPER:
@@ -1740,4 +1744,5 @@ BLEEDBOTTOM1:	DS.B 16*bypl
 BGPLANE2:		DS.B he/2*bypl
 BLEEDBOTTOM2:	DS.B 16*bypl
 X_TEXTURE_MIRROR:	DS.B TEXTURE_H*bwid	; mirrored texture
+
 END
