@@ -50,6 +50,13 @@ _WaitRasterCopper:	MACRO
 	MOVE.W	#$8010,INTENA
 		ENDM
 
+_BlinkCursor:	MACRO
+	MOVE.L	#SPRT__-2,A0
+	MOVE.L	(A0),D0
+	SWAP	D0
+	MOVE.L	D0,(A0)
+		ENDM
+
 ;********** Demo **********	;Demo-specific non-startup code below.
 Demo:			;a4=VBR, a6=Custom Registers Base addr
 	;*--- init ---*
@@ -155,6 +162,8 @@ MainLoop:
 	MOVE.L	(A3,D5),A3	; THANKS HEDGEHOG!!
 	JSR	(A3)		; EXECUTE SUBROUTINE BLOCK#
 
+	;BSET	#1,$DFF132
+
 	_WaitRasterCopper		; is below the Display Window.
 
 	;TST.B	FRAME_STROBE
@@ -255,13 +264,14 @@ __SET_PT_VISUALS:
 	;ADDQ.W	#$1,P61_DUMMY_POS
 	;ADDQ.W	#$1,P61_LAST_POS
 	;;ADD.W	#$0,P61_ROW_INDEX
-	.dontReset:
+	;.dontReset:
 	; ## SONG POS RESETS ##
 
 	; ## STEP SEQUENCER ##
 	MOVE.W	P61_rowpos,D7
-	CMP.W	P61_DUMMY_SEQPOS,D7
-	BEQ.S	.dontResetRowPos
+	MOVE.W	P61_DUMMY_SEQPOS,D1
+	CMP.W	D1,D7
+	BEQ.S	.dontReset
 	MOVE.W	D7,P61_DUMMY_SEQPOS
 	MOVE.W	P61_SEQ_POS,D0
 	ADDQ.W	#$1,D0
@@ -270,8 +280,13 @@ __SET_PT_VISUALS:
 	MOVE.W	P61_ROW_INDEX,D0
 	ADDQ.W	#$1,D0
 	AND.W	#$20,D0
-	MOVE.W	D0,P61_ROW_INDEX
-	.dontResetRowPos:
+
+	; ## BLINK CURSOR ##
+	ANDI.B	#$1,D1
+	BEQ.S	.dontReset
+	_BlinkCursor		; Hack :)
+
+	.dontReset:
 	SUBI.W	#63,D7		; NORMALIZE LIVE VALUE
 	NEG.W	D7		; NOW D7 CONTAINS BLOCK ROW
 	; ## STEP SEQUENCER ##
@@ -281,10 +296,10 @@ __SET_PT_VISUALS:
 	MOVE.W	P61_CH2_INS,D2	; NEW VALUES FROM P61
 	MOVE.W	P61_CH3_INS,D3	; NEW VALUES FROM P61
 
-	TST.W	D7
+	;TST.W	D7
 	;BNE.S	.skip0
 	;CLR.W	$100		; DEBUG | w 0 100 2
-	.skip0:
+	;.skip0:
 
 	; ## MOD VISUALIZERS ##########
 	LEA	P61_visuctr0(PC),A0	; which channel? 0-3
@@ -334,7 +349,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#38,D0
+	MOVE.B	#39,D0
 	;MOVE.W	D0,P61_DUMMY_POS
 	;MOVE.W	D0,P61_LAST_POS
 	LEA	$DFF000,A6
@@ -1221,6 +1236,7 @@ __BLK_B_BIS:
 	RTS
 
 __BLK_MULTI:
+	;MOVE.L	#$01240000,COPPER\.SpritePointers+8
 	CMPI.W	#32,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont
 	MOVE.W	AUDIOCHLEVEL2,D1
@@ -1254,6 +1270,148 @@ __BLK_MULTI:
 	BEQ.W	__BLK_7\.noTexture
 	;CMP.B	#$12,D1
 	;BRA.W	__BLK_7
+	RTS
+
+__BLK_C:
+	;LEA	Z_EASYING_TBL,A0
+	;BSR.W	__LFO_EASYING
+	;MOVE.W	D1,Y_EASYING		; CFG
+	;LSL.W	#$4,D1
+	;_PushColorsDOWN	MAIN_TBL,D1
+
+	LEA	Y_EASYING_TBL,A0		; DEFAULT
+	;ANDI.B	#$1,D7
+	;BEQ.S	.Dont1
+
+	TST.W	P61_visuctr0
+	BEQ.W	.Skip
+	MOVE.W	P61_CH0_INS,D1		; NEW VALUES FROM P61
+	CMP.B	#$09,D1
+	BNE.S	.Not09
+	MOVE.W	#$70,X_EASYING_IDX
+	MOVE.W	#$66,Y_EASYING_IDX
+	MOVE.W	#$1,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
+	LEA	Y_EASYING_TBL,A0
+	BRA.W	.Skip
+	.Not09:
+	CMP.B	#$0C,D1
+	BNE.S	.Not0C
+	MOVE.W	#$20,X_EASYING_IDX
+	MOVE.W	#$40,Y_EASYING_IDX
+	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$1,Y_INCREMENT
+	LEA	X_EASYING_TBL,A0
+	BRA.S	.Skip
+	.Not0C:
+	;CMP.B	#$0B,D1
+	;BNE.S	.Not08
+	;MOVE.W	#$74,X_EASYING_IDX
+	;MOVE.W	#$68,Y_EASYING_IDX
+	;MOVE.W	#$0,X_INCREMENT
+	;MOVE.W	#$0,Y_INCREMENT
+	;LEA	X_EASYING_TBL,A0
+	;BRA.S	.Skip
+	;.Not08:
+	CMP.B	#$07,D1
+	BNE.S	.Not07
+	MOVE.W	#$12,X_EASYING_IDX
+	MOVE.W	#$72,Y_EASYING_IDX
+	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$1,Y_INCREMENT
+	LEA	X_EASYING_TBL,A0
+	BRA.S	.Skip
+	.Not07:
+
+	CMP.B	#$17,D1			; CRASH
+	BEQ.W	__BLK_A_BIS
+	CMP.B	#$0B,D1			; SNARE
+	BEQ.W	__BLK_A_BIS
+
+	.Skip:
+	BSR.W	__LFO_EASYING	
+	LEA	X_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	LEA	Y_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;#################################
+
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+	;MOVE.W	#$2,Y_HALF_SHIFT		; CFG
+	BRA.W	__SPLIT_COPPER_HALF
+	RTS
+
+__BLK_D:
+	LEA	Z_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	MOVE.W	D1,Y_EASYING		; CFG
+	LSL.W	#$4,D1
+	_PushColorsDOWN	MAIN_TBL,D1
+
+	ANDI.B	#$1,D7
+	BEQ.S	.Dont1
+	MOVE.W	#$3,X_EASYING
+	MOVE.W	#$2,Y_EASYING
+	;MOVE.W	#$0,X_INCREMENT
+	;MOVE.W	#$0,Y_INCREMENT
+	BRA.S	.Dont2
+	.Dont1:
+	MOVE.W	#$2,X_EASYING
+	MOVE.W	#$3,Y_EASYING
+	;MOVE.W	#$1,X_INCREMENT
+	;MOVE.W	#$1,Y_INCREMENT
+	.Dont2:
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
+
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;#################################
+
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+	;MOVE.W	#$2,Y_HALF_SHIFT		; CFG
+	BRA.W	__SPLIT_COPPER_HALF
 	RTS
 
 __BLK_TEST:
@@ -1467,7 +1625,8 @@ TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_B_BIS,__BLK_B_BIS,__BLK_B,__BLK_B
 		DC.L __BLK_1,__BLK_2,__BLK_1,__BLK_4
 		DC.L __BLK_5,__BLK_6,__BLK_A,__BLK_MULTI
-		DC.L __BLK_2,__BLK_2,__BLK_7,__BLK_8
+		DC.L __BLK_C,__BLK_C,__BLK_C,__BLK_C
+		DC.L __BLK_C,__BLK_C,__BLK_C,__BLK_C
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 
@@ -1726,6 +1885,7 @@ COPPER_PRE:
 	DC.W $134,0,$136,0	; 5
 	DC.W $138,0,$13A,0	; 6
 	DC.W $13C,0,$13E,0	; 7
+
 	DC.W $FFDF,$FFFE	; allow VPOS>$ff
 	DC.W $3501,$FF00	; ## RASTER END ## #$12C?
 	DC.W $009A,$0010	; CLEAR RASTER BUSY FLAG
