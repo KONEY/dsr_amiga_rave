@@ -56,9 +56,14 @@ _BlinkCursor:	MACRO
 	MOVE.L	D0,(A0)
 		ENDM
 _SplitNoteInstr:	MACRO
+	CLR.L	\2
 	MOVE.W	\1,\2		; \1=P61_CH*_INST  \2=OUTPUT DATA REGISTER
-	AND.W	#$01F0,\2		; MASK 2ND NIBBLE + 2 BIT
-	LSR.W	#$4,\2		; MSB of sample #
+	LSL.L	#$7,\2
+	LSR.W	#$7,\2
+	;LSL.L	\2
+	LSR.W	#$4,\2
+	;AND.W	#$01F0,\2		; MASK 2ND NIBBLE + 2 BIT
+	;LSR.W	#$4,\2		; MSB of sample #
 		ENDM
 ;********** Demo **********	;Demo-specific non-startup code below.
 Demo:			;a4=VBR, a6=Custom Registers Base addr
@@ -156,7 +161,6 @@ MainLoop:
 	;SONG_BLOCKS_EVENTS:
 	;* FOR TIMED EVENTS ON BLOCK ****
 	;MOVE.W	P61_LAST_POS,D5
-	;CLR.W	$100		; DEBUG | w 0 100 2
 	MOVE.W	P61_Pos,D5
 	;MOVE.W	#$0,D5
 	LEA	TIMELINE,A3
@@ -179,7 +183,7 @@ MainLoop:
 	;
 	;.evenFrame:
 
-	;LSR.W	#$1,D7			; CHECK_ODD:
+	;LSR.W	#$1,D7		; CHECK_ODD:
 	;BCC.S	.odd
 	;
 	;BRA.S	.done
@@ -191,9 +195,7 @@ MainLoop:
 	;ENDING_CODE:
 	BTST	#6,$BFE001
 	BNE.S	.DontShowRasterTime
-
 	BSR.W	__BLK_JMP
-
 	.DontShowRasterTime:
 	BTST	#2,$DFF016	; POTINP - RMB pressed?
 	BNE.W	MainLoop		; then loop
@@ -1283,7 +1285,6 @@ __BLK_C:
 
 	TST.W	P61_visuctr0
 	BEQ.W	.Skip
-	_SplitNoteInstr	P61_CH0_INST,D1	; USE A MACRO NOW
 	CMP.B	#$09,D1
 	BNE.S	.Not09
 	MOVE.W	#$16,X_EASYING_IDX
@@ -1366,19 +1367,24 @@ __BLK_D:
 	;MOVE.W	D1,Y_EASYING		; CFG
 	;LSL.W	#$4,D1
 	;_PushColorsDOWN	MAIN_TBL,D1
+
+	_SplitNoteInstr	P61_CH3_INST,D3	; USE A MACRO NOW
+	SWAP	D3
+	SUBI.W	#28,D3
+
 	CMPI.W	#$32,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont1
 
 	ANDI.B	#$1,D7
 	BEQ.S	.Dont1
-	MOVE.W	#$3,X_EASYING
+	MOVE.W	D3,X_EASYING
 	MOVE.W	#$2,Y_EASYING
 	;MOVE.W	#$0,X_INCREMENT
 	;MOVE.W	#$0,Y_INCREMENT
 	BRA.S	.Dont2
 	.Dont1:
 	MOVE.W	#$2,X_EASYING
-	MOVE.W	#$3,Y_EASYING
+	MOVE.W	D3,Y_EASYING
 	;MOVE.W	#$1,X_INCREMENT
 	;MOVE.W	#$1,Y_INCREMENT
 	.Dont2:
@@ -1626,6 +1632,7 @@ TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_5,__BLK_6,__BLK_A,__BLK_MULTI
 		DC.L __BLK_C,__BLK_C,__BLK_C_PRE,__BLK_C
 		DC.L __BLK_D,__BLK_D,__BLK_D,__BLK_D
+		DC.L __BLK_D,__BLK_D,__BLK_D,__BLK_D
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 
@@ -1742,7 +1749,7 @@ MAIN_TBL:		DC.W $0003,$0006,$0207,$0407,$0607,$0907,$0D07,$0F06	; MAIN
 MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
-MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"		; code $960F
+MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix2.P61"		; code $960F
 PIC:		INCBIN "intro_colorfix.raw"
 
 COPPER:

@@ -2435,8 +2435,6 @@ P61_loscont:
 	move P61_jtab(PC,d0),d0
 	jmp P61_jtab(PC,d0)
 P61_fxdone:
-	;move.w P61_SN_Note(a5),d0
-	;move.w d0,P61_KONEY-P61_cn(a3)
 	moveq #$7e,d0
 	and.b (a5),d0
 	beq.b P61_nocha
@@ -3532,7 +3530,7 @@ P61_PTrig: dc.w 0		;Poll this Custom trigger, using 'Bxx',pos $80-$ff
 P61_1F:	 dc.w 0
 	endc
 	ifne useinsnum
-P61_CH3_INST:DC.W 0		; here sample # are stored to use outside
+P61_CH3_INST: DC.W 0	; here sample # are stored to use outside
 P61_CH2_INST: DC.W 0
 P61_CH1_INST: DC.W 0
 P61_CH0_INST: DC.W 0
