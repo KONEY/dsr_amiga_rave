@@ -60,9 +60,8 @@ _SplitNoteInstr:	MACRO
 	MOVE.W	\1,\2		; \1=P61_CH*_INST  \2=OUTPUT DATA REGISTER
 	LSL.L	#$7,\2
 	LSR.W	#$7,\2
-	;LSL.L	\2
 	LSR.W	#$4,\2
-	;AND.W	#$01F0,\2		; MASK 2ND NIBBLE + 2 BIT
+	AND.L	#$3FFFFF,\2	; MASK 2ND NIBBLE + 2 BIT
 	;LSR.W	#$4,\2		; MSB of sample #
 		ENDM
 ;********** Demo **********	;Demo-specific non-startup code below.
@@ -1283,6 +1282,12 @@ __BLK_C:
 	;ANDI.B	#$1,D7
 	;BEQ.S	.Dont1
 
+	_SplitNoteInstr	P61_CH0_INST,D0	; USE A MACRO NOW
+	_SplitNoteInstr	P61_CH1_INST,D1	; USE A MACRO NOW
+	_SplitNoteInstr	P61_CH2_INST,D2	; USE A MACRO NOW
+	_SplitNoteInstr	P61_CH3_INST,D3	; USE A MACRO NOW
+	;CLR.W	$100			; DEBUG | w 0 100 2
+
 	TST.W	P61_visuctr0
 	BEQ.W	.Skip
 	CMP.B	#$09,D1
@@ -1368,9 +1373,14 @@ __BLK_D:
 	;LSL.W	#$4,D1
 	;_PushColorsDOWN	MAIN_TBL,D1
 
+	_SplitNoteInstr	P61_CH0_INST,D0	; USE A MACRO NOW
+	_SplitNoteInstr	P61_CH1_INST,D1	; USE A MACRO NOW
+	_SplitNoteInstr	P61_CH2_INST,D2	; USE A MACRO NOW
 	_SplitNoteInstr	P61_CH3_INST,D3	; USE A MACRO NOW
+	;CLR.W	$100			; DEBUG | w 0 100 2
+
 	SWAP	D3
-	SUBI.W	#28,D3
+	SUBI.W	#27,D3
 
 	CMPI.W	#$32,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont1
@@ -1749,7 +1759,7 @@ MAIN_TBL:		DC.W $0003,$0006,$0207,$0407,$0607,$0907,$0D07,$0F06	; MAIN
 MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
-MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix2.P61"		; code $960F
+MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"		; code $960F
 PIC:		INCBIN "intro_colorfix.raw"
 
 COPPER:

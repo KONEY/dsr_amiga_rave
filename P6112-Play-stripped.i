@@ -2350,70 +2350,80 @@ P61_playtimeCont:
 	moveq #0,d4
 	moveq #channels-1,d5
 	lea P61_temp0(pc),a5
+	
 	bra.w P61_loscont
+	
 	ifne p61bigjtab
 	rept 16*15
 	dc.w P61_nocha-.j
 	endr
 	endc
-	dc P61_fxdone-.j
-	ifne useinsnum
-	dc P61_setCurINS-.j	; NEW ROUTINE BY KONEY
-	endc
+
+	dc P61_fxdone-.j		;$0xx
 	ifne use1Fx
 	dc P61_Trigger-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	dc P61_fxdone-.j
 	ifne P61_tp
 	dc P61_settoneport-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	ifne P61_vib
 	dc P61_vibrato-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	ifne P61_tpvs
 	dc P61_toponochange-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	dc P61_fxdone-.j
 	ifne P61_tre
 	dc P61_settremo-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	dc P61_fxdone-.j
 	ifne P61_sof
 	dc P61_sampleoffse-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	dc P61_fxdone-.j
 	ifne P61_pj
 	dc P61_posjmp-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	ifne P61_vl
 	dc P61_volum-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	ifne P61_pb
 	dc P61_pattbreak-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	ifne P61_ec
 	dc P61_ecommands-.j
 	else
 	dc P61_fxdone-.j
 	endc
+
 	ifne P61_sd
 	dc P61_cspeed-.j
 	else
@@ -2430,6 +2440,15 @@ P61_loscont:
 	tst.b d0
 	beq.s P61_nocha
 	endc
+
+	ifne useinsnum
+	;P61_setCurINS:		; ## KONEY ##
+	MOVE.W	#P61_CH3_INST-P61_cn,D2
+	ADD.W	D5,D2		; D5 = TRACK# 3-0
+	ADD.W	D5,D2		; TWO ADDS ARE FASTER THAN MULU :)
+	MOVE.W	P61_SN_Note(A5),(A3,D2.W)
+	endc			; ## KONEY ##
+
 	or (a5),d0
 	add d0,d0
 	move P61_jtab(PC,d0),d0
@@ -2592,17 +2611,6 @@ P61_nonewpatt:
 	move d0,P61_CRow-P61_cn(a3)
 	endc
 	rts
-	ifne useinsnum
-P61_setCurINS:			; ## KONEY ##
-	MOVE.W	#P61_CH3_INST-P61_cn,D2
-	ADD.W	D5,D2		; D5 = TRACK# 3-0
-	ADD.W	D5,D2		; TWO ADDS ARE FASTER THAN MULU :)
-	MOVE.W	P61_SN_Note(A5),D0
-	;AND.W	#$01F0,D0		; MASK 2ND NIBBLE + 2 BIT
-	;LSR.W	#$4,D0		; MSB of sample #
-	MOVE.W	D0,(A3,D2.W)
-	BRA.W	P61_fxdone
-	endc			; ## KONEY ##
 	ifne use1Fx
 P61_Trigger:
 	move.b	P61_Info(a5),d0
