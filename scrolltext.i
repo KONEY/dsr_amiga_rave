@@ -1,0 +1,2 @@
+	DC.B "Hi there so you found this little hidden text as well. Hope you did enjoy our new DESiRE release for Amiga done by Koney for phreaky code, VisionVortex for the pixelpushing and Subi for the funky track. Art is how we decorate space music is how we decorate time code is how we decorate the 4 dimensions. Time for some greets here as well. Hugs and kisses to  Alcatraz   Noice   Moods Plateau   Proxima  g0blinish. "
+	EVEN

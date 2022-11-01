@@ -2,6 +2,7 @@
 	INCDIR	"NAS:AMIGA/CODE/dsr_amiga_rave/"
 	SECTION	"Code+PT12",CODE
 	INCLUDE	"PhotonsMiniWrapper1.04!.S"
+	INCLUDE	"scrolltext.i"
 	INCLUDE	"custom-registers.i"	;use if you like ;)
 	INCLUDE	"PT12_OPTIONS.i"
 	INCLUDE	"P6112-Play-stripped.i"
@@ -346,7 +347,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#42,D0
+	MOVE.B	#46,D0
 	;MOVE.W	D0,P61_DUMMY_POS
 	;MOVE.W	D0,P61_LAST_POS
 	LEA	$DFF000,A6
@@ -1382,10 +1383,10 @@ __BLK_D:
 	BLO.S	.Jump1
 
 	.Jump2:
-	_SplitNoteInstr	P61_CH1_INST,D1	; USE A MACRO NOW
-	CMP.B	#$5,D1
+	_SplitNoteInstr	P61_CH0_INST,D1	; USE A MACRO NOW
+	CMP.B	#$A,D1
 	BNE.S	.noTexture
-	MOVE.W	#$4,Y_HALF_SHIFT	; CFG
+	MOVE.W	#$2,Y_HALF_SHIFT	; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
 	.noTexture:
 	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
@@ -1447,8 +1448,72 @@ __BLK_D:
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
-	;MOVE.W	#$2,Y_HALF_SHIFT		; CFG
-	BRA.W	__SPLIT_COPPER_HALF
+	MOVE.W	#$48,X_EASYING_IDX		; MOCK LFO FROM HALF
+	MOVE.W	#$00,Z_EASYING_IDX		; MOCK LFO FROM HALF
+	RTS
+
+__BLK_E:
+	_PushColorsDOWN	MAIN_TBL,#8*8
+	BSR.W	__SPLIT_COPPER_QUARTER
+
+	LEA	X_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	MOVE.W	D1,D2
+	MOVE.W	D2,Y_HALF_SHIFT
+	BSR.W	__DO_HORIZ_TEXTURE
+
+	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
+	CMP.W	#18,D1
+	BNE.S	.noDblLFO
+	;BSR.W	__LFO_EASYING
+	.noDblLFO:
+	;SWAP	D1
+	;SUBI.W	#14,D1
+	;LSL.W	D1
+	;MOVE.W	D1,Z_EASYING_IDX
+	LEA	Z_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+
+	CMPI.W	#32,D7			; WORKS STRAIGHT!
+	BLO.S	.Dont1
+	MOVE.W	D1,X_EASYING
+	MOVE.W	D2,Y_EASYING
+	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$1,Y_INCREMENT
+	BRA.S	.Dont2
+	.Dont1:
+	MOVE.W	D2,X_EASYING
+	MOVE.W	D1,Y_EASYING
+	MOVE.W	#$1,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
+	.Dont2:
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+	;MOVE.W	#$0,X_INCREMENT
+	;MOVE.W	#$0,Y_INCREMENT
+
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;#################################
+
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
 	RTS
 
 __BLK_TEST:
@@ -1665,6 +1730,8 @@ TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_C,__BLK_C,__BLK_C_PRE,__BLK_C
 		DC.L __BLK_D,__BLK_D\.Jump3,__BLK_D\.Jump3,__BLK_D\.Jump2
 		DC.L __BLK_D\.Jump2,__BLK_D\.Jump2,__BLK_D\.Jump2,__BLK_D\.Jump2
+		DC.L __BLK_E,__BLK_E,__BLK_E,__BLK_E
+		DC.L __BLK_E,__BLK_E,__BLK_E,__BLK_E
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 
@@ -1747,9 +1814,9 @@ Z_EASYING_TBL:	DC.W $0,$1,$1,$2,$2,$3,$3,$4,$4,$5,$5,$6,$6,$7,$7,$7,$8,$8,$8,$8,
 		DC.W $5,$5,$4,$4,$4,$4,$3,$3,$3,$3,$3,$2,$2,$2,$2,$1,$1,$1,$1,$1,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
 Z_EASYING:	DC.W 0
 
-	;*******************************************************************************
+;*******************************************************************************
 	SECTION	ChipData,DATA_C	;declared data that must be in chipmem
-	;*******************************************************************************
+;*******************************************************************************
 
 BLUE_TBL:		DC.W $0002,$0004,$0007,$0009,$000B,$000C,$000E,$000F	; BLUE
 		DC.W $0002,$0105,$0106,$0109,$010B,$010C,$010E,$010E
@@ -1782,7 +1849,7 @@ MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
 MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"		; code $960F
-PIC:		INCBIN "intro_colorfix.raw"
+PIC:		INCBIN "intro_VV_test.raw"
 
 COPPER:
 	DC.W $1FC,0	; Slow fetch mode, remove if AGA demo.
@@ -1890,14 +1957,14 @@ COPPER_PRE:
 	DC.W $102,0	; SCROLL REGISTER (AND PLAYFIELD PRI)
 
 	.Palette:
-	DC.W $0180,$0102,$0182,$0001,$0184,$0103,$0186,$0113
-	DC.W $0188,$0114,$018A,$0126,$018C,$005D,$018E,$009F
-	DC.W $0190,$00CF,$0192,$0300,$0194,$0214,$0196,$0321
-	DC.W $0198,$0314,$019A,$0238,$019C,$0258,$019E,$025A
-	DC.W $01A0,$017F,$01A2,$0421,$01A4,$0426,$01A6,$0436
-	DC.W $01A8,$01EF,$01AA,$0623,$01AC,$0538,$01AE,$0558
-	DC.W $01B0,$0832,$01B2,$074A,$01B4,$066A,$01B6,$0967
-	DC.W $01B8,$0A8B,$01BA,$099F,$01BC,$0000,$01BE,$0000
+	DC.W $0180,$0112,$0182,$0079,$0184,$0025,$0186,$01C7
+	DC.W $0188,$0406,$018A,$0926,$018C,$0BF4,$018E,$0D21
+	DC.W $0190,$0F27,$0192,$0F8A,$0194,$0F82,$0196,$0FC0
+	DC.W $0198,$0FFF,$019A,$0000,$019C,$0000,$019E,$0000
+	DC.W $01A0,$018F,$01A2,$0459,$01A4,$07DF,$01A6,$0FFF
+	DC.W $01A8,$0000,$01AA,$0000,$01AC,$0000,$01AE,$0000
+	DC.W $01B0,$0000,$01B2,$0000,$01B4,$0000,$01B6,$0000
+	DC.W $01B8,$0000,$01BA,$0000,$01BC,$0000,$01BE,$0000
 
 	.BplPtrs:
 	DC.W $E0,0
