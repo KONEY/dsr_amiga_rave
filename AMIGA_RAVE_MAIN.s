@@ -104,8 +104,17 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	BSR.W	PokePtrs
 
 	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
+	; ## PRECALCULATE BPL OFFSETS ##
+	CLR.L	D0
+	LEA	BPL_PRECALC,A2
+	.loop:
+	MOVE.W	D0,(A2)
+	ADD.W	#bypl,D0
+	CMP.W	#bypl*he,(A2)+
+	BLO.S	.loop
+	; ## PRECALCULATE BPL OFFSETS ##
+
 	MOVE.L	KICKSTART_ADDR,A3
-	;LEA	PIXELS,A3			; NOW 3 BPLS
 	LEA	X_TEXTURE_MIRROR,A4		; FILLS A PLANE
 	BSR.W	__EXPAND_PIXELS		; WITH DITHERING
 
@@ -120,26 +129,23 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	;MOVE.W	#0,D0
 	;BSR.W	__DITHER_PLANE		; WITH DITHERING
 
-	; ## PRECALCULATE BPL OFFSETS ##
-	CLR.L	D0
-	LEA	BPL_PRECALC,A2
-	.loop:
-	MOVE.W	D0,(A2)
-	ADD.W	#bypl,D0
-	CMP.W	#bypl*he,(A2)+
-	BLO.S	.loop
-	; ## PRECALCULATE BPL OFFSETS ##
+	MOVE.W	#$1,Y_HALF_SHIFT		; CFG
+	.fillInitialScreen:			; TO START WITH A POPULATED SCREEN!
+	BSR.W	__BLK_0\.Dont
+	LEA	BGPLANE2,A1
+	TST.L	(A1)
+	BEQ.S	.fillInitialScreen
 
+	;LEA	BLEEDFINAL,A1
+	;BSR.W	__WIPE_PLANE
+
+	BSR.W	__SWAP_ODD_EVEN_PTRS
+	; #### Point LOGO sprites
+	BSR.W	__POKE_SPRITE_POINTERS
 	; ## CPU COPPER :) ##
 	_PushColorsDown	BLUE_TBL,#$0
 	; ## CPU COPPER :) ##
-
-	BSR.W	__SWAP_ODD_EVEN_PTRS
 	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
-
-	; #### Point LOGO sprites
-	BSR.W	__POKE_SPRITE_POINTERS
-	; #### Point LOGO sprites
 
 	MOVE.L	#COPPER,COP1LC
 
@@ -151,7 +157,6 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVE.W	#MODSTART_POS,P61_InitPos	; TRACK START OFFSET
 	JSR	P61_Init
 	MOVEM.L (SP)+,D0-A6
-
 ;********************  main loop  ********************
 MainLoop:
 	;MOVE.W	#$12C,D0		; No buffering, so wait until raster
@@ -215,13 +220,14 @@ PokePtrs:				; SUPER SHRINKED REFACTOR
 	;CLR.L	-4(A0)
 	RTS
 
-ClearScreen:			; a1=screen destination address to clear
-	bsr	WaitBlitter
-	clr.w	$66(a6)		; destination modulo
-	move.l	#$01000000,$40(a6)	; set operation type in BLTCON0/1
-	move.l	a1,$54(a6)	; destination address
-	move.l	#blitsize*bpls,$58(a6)	;blitter operation size
-	rts
+__WIPE_PLANE:			; a1=screen destination address to clear
+	BSR	WaitBlitter
+	MOVE.W	#$0,BLTDMOD		; Init modulo Sou. A
+	MOVE.L	#$01000000,BLTCON0		; set operation type in BLTCON0/1
+	MOVE.L	A1,BLTDPTH		; destination address
+	MOVE.W	#32*64+wi/16,BLTSIZE	; blitter operation size
+	BSR	WaitBlitter
+	RTS
 
 VBint:				; Blank template VERTB interrupt
 	movem.l	d0/a6,-(sp)	; Save used registers
@@ -516,7 +522,7 @@ __EXPAND_PIXELS:
 __BLIT_TEXTURE_BAND:
 	MOVE.L	(A5),D0			; A5 PRELOADED WITH RESET ADDRESS
 	MOVE.L	4(A5),A3			; NEXT LONG CONTAINS ACTUALE POINTER
-	SUB.L	#(TEXTURE_H)*bypl,D0	; OFFSET FOR TEXTURE END
+	SUB.L	#TEXTURE_H*bypl,D0		; OFFSET FOR TEXTURE END
 	CMP.L	D0,A3
 	BHI.S	.notEnd
 	MOVE.L	(A5),A3			; RELOAD RESET ADDRESS
@@ -631,30 +637,16 @@ __LFO_EASYING:
 
 __DO_HORIZ_TEXTURE:
 	;## HORIZ TEXTURE ##############
-	;MOVE.W	#16*64+wi/16,BLIT_SIZE
 	MOVE.L	#$9F00000,D4
-	;MOVE.W	#%0000100111110000,BLTCON0	; BLTCON0
-	;MOVE.W	#%0000000000000000,BLTCON1	; BLTCON1 BIT 12 DESC MODE
 	MOVE.L	#-1,D5
 	CLR.L	D6
 	LEA	BLEEDBOTTOM0,A4
-	;ADD.L	#bypl*16,A4
 	LEA	TEXTURERESET5,A5
 	BSR.W	__BLIT_TEXTURE_BAND
-	;## HORIZ TEXTURE ##############
-	;MOVE.W	#16*64+wi/16,BLIT_SIZE
-	;MOVE.W	Y_EASYING,Y_HALF_SHIFT
-	;MOVE.L	#0,BLIT_A_MOD
 	LEA	BLEEDBOTTOM1,A4
-	;ADD.L	#bypl*16,A4
 	LEA	TEXTURERESET6,A5
 	BSR.W	__BLIT_TEXTURE_BAND
-	;## HORIZ TEXTURE ##############
-	;MOVE.W	#16*64+wi/16,BLIT_SIZE
-	;MOVE.W	Y_EASYING,Y_HALF_SHIFT
-	;MOVE.L	#0,BLIT_A_MOD
 	LEA	BLEEDBOTTOM2,A4
-	;ADD.L	#bypl*16,A4
 	LEA	TEXTURERESET7,A5
 	BSR.W	__BLIT_TEXTURE_BAND
 	;## HORIZ TEXTURE ##############
@@ -1592,7 +1584,7 @@ __BLK_E_BIS:
 	RTS
 
 __BLK_TEST:
-	MOVE.W	Y_EASYING,Y_HALF_SHIFT	; CFG
+	MOVE.W	#$1,Y_HALF_SHIFT		; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
 
 	;## SETTINGS #####################
@@ -1604,7 +1596,7 @@ __BLK_TEST:
 	MOVE.L	#-1,D1
 	MOVE.W	#$0,X_INCREMENT
 	MOVE.W	#$0,Y_INCREMENT
-	MOVE.W	#$1,X_EASYING
+	MOVE.W	#$0,X_EASYING
 	MOVE.W	#$1,Y_EASYING
 
 	;## PERFORM ######################
@@ -1623,22 +1615,6 @@ __BLK_TEST:
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_2
 	;#################################
-
-	;CMPI.W	#16,D7		; WORKS STRAIGHT!
-	;BNE.S	.Skip
-	;LEA	TEXTURERESET6,A0
-	;MOVE.L	(A0),4(A0)
-	;.Skip:
-	;CMPI.W	#17,D7		; WORKS STRAIGHT!
-	;BNE.S	.Skip2
-	;LEA	TEXTURERESET7,A0
-	;MOVE.L	(A0),4(A0)
-	;.Skip2:
-	;CMPI.W	#19,D7		; WORKS STRAIGHT!
-	;BNE.S	.Skip3
-	;LEA	TEXTURERESET5,A0
-	;MOVE.L	(A0),4(A0)
-	;.Skip3:
 	RTS
 
 __DO_PLANE_0:
@@ -1792,7 +1768,9 @@ __BLK_END:
 	RTS
 
 ;********** Fastmem Data **********
-TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
+TIMELINE:		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST
+		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST
+		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_0,__BLK_1,__BLK_0,__BLK_4
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
 		DC.L __BLK_7,__BLK_7,__BLK_7,__BLK_8
@@ -1889,9 +1867,7 @@ Z_EASYING_TBL:	DC.W $0,$1,$1,$2,$2,$3,$3,$4,$4,$5,$5,$6,$6,$7,$7,$7,$8,$8,$8,$8,
 		DC.W $5,$5,$4,$4,$4,$4,$3,$3,$3,$3,$3,$2,$2,$2,$2,$1,$1,$1,$1,$1,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
 Z_EASYING:	DC.W 0
 
-;*******************************************************************************
-	SECTION	ChipData,DATA_C	;declared data that must be in chipmem
-;*******************************************************************************
+BPL_PRECALC:	DS.W bypl*he	; Precalculated offsets
 
 BLUE_TBL:		DC.W $0002,$0004,$0007,$0009,$000B,$000C,$000E,$000F	; BLUE
 		DC.W $0002,$0105,$0106,$0109,$010B,$010C,$010E,$010E
@@ -1921,6 +1897,10 @@ MAIN_TBL:		DC.W $0003,$0006,$0207,$0407,$0607,$0907,$0D07,$0F06	; MAIN
 		DC.W $0002,$000D,$0D01,$0E0E,$0A02,$0506,$090F,$0909
 		DC.W $0001,$000E,$0E01,$0E0F,$0B02,$0506,$080F,$0808
 MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
+
+;*******************************************************************************
+	SECTION	ChipData,DATA_C	;declared data that must be in chipmem
+;*******************************************************************************
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
 MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"		; code $960F
@@ -2075,14 +2055,13 @@ COPPER_PRE:
 	SECTION ChipBuffers,BSS_C	;BSS doesn't count toward exe size
 ;*******************************************************************************
 
-BPL_PRECALC:	DS.W bypl*2	; Precalculated offsets
-BLEEDTOP0:	DS.B 16*bypl*2
+BLEEDTOP0:	DS.B 16*bypl
 BGPLANE0:		DS.B he/2*bypl
 BLEEDBOTTOM0:	DS.B 16*bypl
 BGPLANE1:		DS.B he/2*bypl
 BLEEDBOTTOM1:	DS.B 16*bypl
 BGPLANE2:		DS.B he/2*bypl
 BLEEDBOTTOM2:	DS.B 16*bypl
-X_TEXTURE_MIRROR:	DS.B TEXTURE_H*bwid	; mirrored texture
-
+X_TEXTURE_MIRROR:	DS.B TEXTURE_H*bwid		; mirrored texture
+		DS.B 16*bypl		; final padding
 END
