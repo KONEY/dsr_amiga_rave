@@ -347,7 +347,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#46,D0
+	MOVE.B	#51,D0
 	;MOVE.W	D0,P61_DUMMY_POS
 	;MOVE.W	D0,P61_LAST_POS
 	LEA	$DFF000,A6
@@ -837,6 +837,7 @@ __BLK_4:
 __BLK_5:
 	TST.W	D7
 	BNE.S	.noColorReset
+	.ForceColor:
 	_PushColorsDOWN	MAIN_TBL,#$0
 	BSR.W	__SPLIT_COPPER_HALF
 	.noColorReset:
@@ -946,13 +947,14 @@ __BLK_6:
 __BLK_7:
 	TST.W	D7
 	BNE.S	.noColorReset
+	.ForceColor:
 	_PushColorsDOWN	PURPL_TBL,#$0
 	BSR.W	__SPLIT_COPPER_HALF
 	.noColorReset:
 
 	TST.W	P61_visuctr0
 	BNE.S	.noTexture
-	MOVE.W	#$1,Y_HALF_SHIFT	; CFG
+	MOVE.W	#$1,Y_HALF_SHIFT
 	BSR.W	__DO_HORIZ_TEXTURE
 	.noTexture:
 
@@ -1008,7 +1010,7 @@ __BLK_8:
 	
 	TST.W	P61_visuctr0
 	BNE.S	.noTexture
-	MOVE.W	#$F,Y_HALF_SHIFT		; CFG
+	MOVE.W	#$F,Y_HALF_SHIFT
 	BSR.W	__DO_HORIZ_TEXTURE
 	.noTexture:
 
@@ -1386,7 +1388,7 @@ __BLK_D:
 	_SplitNoteInstr	P61_CH0_INST,D1	; USE A MACRO NOW
 	CMP.B	#$A,D1
 	BNE.S	.noTexture
-	MOVE.W	#$2,Y_HALF_SHIFT	; CFG
+	MOVE.W	#$2,Y_HALF_SHIFT
 	BSR.W	__DO_HORIZ_TEXTURE
 	.noTexture:
 	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
@@ -1453,24 +1455,24 @@ __BLK_D:
 	RTS
 
 __BLK_E:
-	_PushColorsDOWN	MAIN_TBL,#8*8
+	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
+	CMP.W	#$12,D1
+	BEQ.W	__BLK_7\.ForceColor
+
+	_PushColorsDOWN	MAIN_TBL,#4*8
 	BSR.W	__SPLIT_COPPER_QUARTER
 
 	LEA	X_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
 	MOVE.W	D1,D2
-	MOVE.W	D2,Y_HALF_SHIFT
-	BSR.W	__DO_HORIZ_TEXTURE
 
-	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
-	CMP.W	#18,D1
-	BNE.S	.noDblLFO
-	;BSR.W	__LFO_EASYING
-	.noDblLFO:
-	;SWAP	D1
-	;SUBI.W	#14,D1
-	;LSL.W	D1
-	;MOVE.W	D1,Z_EASYING_IDX
+	;_SplitNoteInstr	P61_CH2_INST,D1	; USE A MACRO NOW
+	;CMP.W	#$2,D1
+	;BNE.S	.noTexture
+	;MOVE.W	D2,Y_HALF_SHIFT
+	;BSR.W	__DO_HORIZ_TEXTURE
+	;.noTexture:
+
 	LEA	Z_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
 
@@ -1478,7 +1480,7 @@ __BLK_E:
 	BLO.S	.Dont1
 	MOVE.W	D1,X_EASYING
 	MOVE.W	D2,Y_EASYING
-	MOVE.W	#$0,X_INCREMENT
+	MOVE.W	#$1,X_INCREMENT
 	MOVE.W	#$1,Y_INCREMENT
 	BRA.S	.Dont2
 	.Dont1:
@@ -1508,7 +1510,80 @@ __BLK_E:
 	;## PERFORM ######################
 	BSR.W	__DO_PLANE_1
 	;#################################
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+	RTS
 
+__BLK_E_PRE:
+	CMPI.W	#32,D7			; WORKS STRAIGHT!
+	BGE.W	__BLK_A\.noColorReset
+__BLK_E_BIS:
+	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
+	CMP.W	#$12,D1
+	BEQ.W	__BLK_5
+
+	MOVE.W	D7,D1
+	LSR.W	#$2,D1
+	LSL.W	#$4,D1
+
+	_PushColorsDOWN	PURPL_TBL,D1
+	BSR.W	__SPLIT_COPPER_QUARTER
+
+	LEA	X_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	MOVE.W	D1,D2
+
+	_SplitNoteInstr	P61_CH2_INST,D1	; USE A MACRO NOW
+	CMP.W	#$2,D1
+	BNE.S	.noTexture
+	MOVE.W	D2,Y_HALF_SHIFT
+	BSR.W	__DO_HORIZ_TEXTURE
+	.noTexture:
+
+	LEA	Z_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+
+	CMPI.W	#16,D7			; WORKS STRAIGHT!
+	BLO.S	.Dont1
+	CMPI.W	#32,D7			; WORKS STRAIGHT!
+	BLO.S	.Dont1
+	CMPI.W	#48,D7			; WORKS STRAIGHT!
+	BGE.S	.Dont1
+	MOVE.W	D2,X_EASYING
+	MOVE.W	D1,Y_EASYING
+	MOVE.W	#$1,X_INCREMENT
+	MOVE.W	#$0,Y_INCREMENT
+	BRA.S	.Dont2
+	.Dont1:
+	MOVE.W	D1,X_EASYING
+	MOVE.W	D2,Y_EASYING
+	MOVE.W	#$1,X_INCREMENT
+	MOVE.W	#$1,Y_INCREMENT
+	.Dont2:
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+	;MOVE.W	#$0,X_INCREMENT
+	;MOVE.W	#$0,Y_INCREMENT
+
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;#################################
 	;## SETTINGS #####################
 	NEG.W	D3
 	;## PERFORM ######################
@@ -1731,9 +1806,9 @@ TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_D,__BLK_D\.Jump3,__BLK_D\.Jump3,__BLK_D\.Jump2
 		DC.L __BLK_D\.Jump2,__BLK_D\.Jump2,__BLK_D\.Jump2,__BLK_D\.Jump2
 		DC.L __BLK_E,__BLK_E,__BLK_E,__BLK_E
-		DC.L __BLK_E,__BLK_E,__BLK_E,__BLK_E
-		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
-		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
+		DC.L __BLK_E_BIS,__BLK_E_BIS,__BLK_E_BIS,__BLK_E_PRE
+		DC.L __BLK_A\.noColorReset,__BLK_A\.noColorReset,__BLK_0,__BLK_0
+		DC.L __BLK_3,__BLK_3,__BLK_4,__BLK_1
 
 BPL_PTR_BUF:	DC.L 0
 AUDIOCHLEVEL0NRM:	DC.W 0
