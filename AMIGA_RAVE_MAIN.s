@@ -19,7 +19,7 @@ hband		EQU 10		; lines reserved for textscroller
 hblit		EQU he/2		;-hband	; size of blitter op without textscroller
 wblit		EQU wi/2/16*2
 bypl_real		EQU wi/16*2
-TEXTURE_H		EQU 64*8*bpls
+TEXTURE_H		EQU 48*8*bpls
 X_2X_SLICE	EQU 9
 X_SLICE		EQU 26
 Y_SLICE		EQU 32
@@ -44,12 +44,6 @@ _PushColorsUp:	MACRO
 	MOVE.L	-(A0),(A1)+
 	ENDR
 		ENDM
-_WaitRasterCopper:	MACRO
-	;MOVE.W	#$0FF0,$DFF180	; show rastertime left down to $12c
-	BTST	#4,INTENAR+1
-	;MOVE.W	#$0000,$DFF180	; show rastertime left down to $12c
-	MOVE.W	#$8010,INTENA
-		ENDM
 _BlinkCursor:	MACRO
 	MOVE.L	#SPRT__-2,A0
 	MOVE.L	(A0),D0
@@ -73,6 +67,8 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVE.W	#%1110000000100000,INTENA
 	MOVE.W	#%1000001111100000,DMACON
 	;*--- start copper ---*
+	LEA	COPPER_PRE\.SpritePointers,A1
+	BSR.W	__POKE_SPRITE_POINTERS
 	LEA	PIC,A0
 	LEA	COPPER_PRE\.BplPtrs,A1
 	BSR.W	PokePtrs
@@ -141,6 +137,7 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 
 	BSR.W	__SWAP_ODD_EVEN_PTRS
 	; #### Point LOGO sprites
+	LEA	COPPER\.SpritePointers,A1
 	BSR.W	__POKE_SPRITE_POINTERS
 	; ## CPU COPPER :) ##
 	_PushColorsDown	BLUE_TBL,#$0
@@ -159,10 +156,15 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVEM.L (SP)+,D0-A6
 ;********************  main loop  ********************
 MainLoop:
-	;MOVE.W	#$12C,D0		; No buffering, so wait until raster
-	;BSR.W	WaitRaster	;is below the Display Window.
+	;BTST	#$F,VPOSR			; HW FRAME STROBE
+	;BEQ.S	.odd
+	;MOVE.W	#$0000,$DFF180		; SHOW ACTIVITY :)
+	;BRA.S	.evn
+	;.odd:
+	;MOVE.W	#$0FFF,$DFF180		; SHOW ACTIVITY :)
+	;.evn:
+	
 	BSR.W	__SET_PT_VISUALS
-
 	; do stuff here :)
 	;SONG_BLOCKS_EVENTS:
 	;* FOR TIMED EVENTS ON BLOCK ****
@@ -170,31 +172,29 @@ MainLoop:
 	MOVE.W	P61_Pos,D5
 	;MOVE.W	#$0,D5
 	LEA	TIMELINE,A3
-	ADD.W	D5,D5		; CALCULATES OFFSET (OPTIMIZED)
-	ADD.W	D5,D5		; CALCULATES OFFSET (OPTIMIZED)
-	MOVE.L	(A3,D5),A3	; THANKS HEDGEHOG!!
-	JSR	(A3)		; EXECUTE SUBROUTINE BLOCK#
+	ADD.W	D5,D5			; CALCULATES OFFSET (OPTIMIZED)
+	ADD.W	D5,D5			; CALCULATES OFFSET (OPTIMIZED)
+	MOVE.L	(A3,D5),A3		; THANKS HEDGEHOG!!
+	JSR	(A3)			; EXECUTE SUBROUTINE BLOCK#
 
-	;BSET	#1,$DFF132
-
-	_WaitRasterCopper		; is below the Display Window.
+	.WaitRasterCopper:
+	;MOVE.W	#$0FF0,$DFF180		; show rastertime left down to $12c
+	BTST	#$4,INTENAR+1
+	BNE.S	.WaitRasterCopper
+	;MOVE.W	#$0F00,$DFF180		; show rastertime left down to $12c
+	MOVE.W	#$8010,INTENA
 
 	;TST.B	FRAME_STROBE
 	;BNE.W	.oddFrame
 	;MOVE.B	#1,FRAME_STROBE
-	;
 	;BRA.W	.evenFrame
 	;.oddFrame:
 	;MOVE.B	#0,FRAME_STROBE
-	;
 	;.evenFrame:
-
 	;LSR.W	#$1,D7		; CHECK_ODD:
 	;BCC.S	.odd
-	;
 	;BRA.S	.done
 	;.odd:
-	;
 	;.done:
 
 	;*--- main loop end ---*
@@ -353,7 +353,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#39,D0
+	MOVE.B	#32,D0
 	;MOVE.W	D0,P61_DUMMY_POS
 	;MOVE.W	D0,P61_LAST_POS
 	LEA	$DFF000,A6
@@ -362,7 +362,6 @@ __BLK_JMP:
 	RTS
 
 __POKE_SPRITE_POINTERS:
-	LEA	COPPER\.SpritePointers,A1
 	MOVE.L	#SPRT_D,D0
 	MOVE.W	D0,6(A1)
 	SWAP	D0
@@ -429,7 +428,7 @@ __MIRROR_PLANE:
 	.outerloop:		; NUOVA RIGA
 	MOVE.W	#(bypl/2)-1,D6
 	.innerloop:
-	;MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF19A	; SHOW ACTIVITY :)
 	MOVE.B	(A3)+,D5
 
 	MOVE.B	D5,D0
@@ -449,7 +448,7 @@ __FILL_MIRROR_TEXTURE:
 	.outerloop:		; NUOVA RIGA
 	MOVE.W	#(bypl/4)-1,D6	; RESET D6
 	.innerloop:		; LOOP KE CICLA LA BITMAP
-	;MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
+	MOVE.B	$DFF006,$DFF19A	; SHOW ACTIVITY :)
 
 	CLR.L	D5
 	MOVE.L	(A3),D5
@@ -464,33 +463,15 @@ __FILL_MIRROR_TEXTURE:
 
 __EXPAND_PIXELS:
 	CLR.L	D2
-	;MOVE.B	$DFF006,D2	; SHOW ACTIVITY :)
-	ROR.L	#$4,D2
-	OR.L	#$AAA5AAA5,D2
+	CLR.L	D5
+	MOVE.B	#$AA,D5		; DITHER?
+	MOVE.L	#$AA5AAA5A,D2
 	MOVE.W	#TEXTURE_H/8*bpls-1,D7 ; 40 WORDS, 20PX, xBPL
 	.outerloop:		; NUOVA RIGA
-	;MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
+	MOVE.B	$BFD800,$DFF19A	; SHOW ACTIVITY :)
 	;BSR.W	WaitEOF		; TO SLOW DOWN :)
 
-	CLR.L	D0
-	MOVE.W	(A3)+,D0		; FIRST 16 PIXEL
-	SWAP	D0
-	MOVE.B	6(A3),D0		; OTHER 4= PIXEL
-	LSR.B	#$4,D0		; ALIGN WITH OTHER BITS
-	SWAP	D0
-	ADD.L	#$4,A3		; NEXT LINE. EACH LINE 20 + PADDING
-
-	BTST	#$0,(A3)
-	BEQ.S	.dontEor
-	;OR.W	D2,D0
-	;ROL.L	#$1,D0
-	;BRA.S	.dontEor
-	;.dontDither:
-	;AND.B	D2,D0		; COMBINE TEXTURE WITH MOCKED BITS
-	;ROL.L	#2,D2
-	MOVE.B	$DFF006,D0	; SHOW ACTIVITY :)
-	.dontEor:
-
+	MOVE.L	(A3)+,D0		; FIRST 16 PIXEL
 	OR.L	D2,D0		; COMBINE TEXTURE WITH MOCKED BITS
 
 	MOVEQ	#$A,D4		; 20 PIXEL, 2 BITS AT THE TIME = 10
@@ -504,24 +485,30 @@ __EXPAND_PIXELS:
 	BTST	#$0,D0		; FIRST BIT SET?
 	BNE.S	.not0
 	MOVE.B	#-1,D1
-	;MOVE.W	(A3)+,D1		; FOR MORE CRAZY TEXTURE
 	.not0:			; D1 NOW CONTAINS FIRST TWO PIXELS EXPANDED
 
+	;MOVE.B	#$AA,D1		; DITHERING
+
 	MOVE.W	D1,40(A4)		; AND WE PUT IT AS WORD ON DEST
+	ROR.B	D1		; INVERT DITHER
 	MOVE.W	D1,80(A4)		; AND WE PUT IT AS WORD ON DEST
+	ROR.B	D1		; INVERT DITHER
 	MOVE.W	D1,120(A4)	; AND WE PUT IT AS WORD ON DEST
+	ROR.B	D1		; INVERT DITHER
 	MOVE.W	D1,160(A4)	; AND WE PUT IT AS WORD ON DEST
+	ROL.B	D1		; INVERT DITHER
 	MOVE.W	D1,200(A4)	; AND WE PUT IT AS WORD ON DEST
+	ROR.B	D1		; INVERT DITHER
 	MOVE.W	D1,240(A4)	; AND WE PUT IT AS WORD ON DEST
+	ROR.B	D1		; INVERT DITHER
 	MOVE.W	D1,280(A4)	; AND WE PUT IT AS WORD ON DEST
+	ROR.B	D1		; INVERT DITHER
 	MOVE.W	D1,(A4)+		; AND WE PUT IT AS WORD ON DEST
 	ROR.L	#$2,D0		; NEXT TWO PIXELS
 	ROR.L	#$2,D2		; MOCK
 	DBRA	D4,.lineLoop
 
 	ROR.L	D2		; NEXT TWO PIXELS
-	;NOT	D2
-	;SWAP	D2
 
 	LEA	18(A4),A4
 	LEA	280(A4),A4
@@ -662,6 +649,8 @@ __DO_HORIZ_TEXTURE:
 	RTS
 
 __BLK_2:
+	CMPI.W	#32,D7			; WORKS STRAIGHT!
+	BGE.W	__BLK_SIREN
 	LEA	Y_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
 __BLK_0:
@@ -678,7 +667,7 @@ __BLK_0:
 	MOVE.W	#$0,Z_EASYING_IDX
 	.Dont:
 
-	BSR.S	__DO_HORIZ_TEXTURE
+	BSR.W	__DO_HORIZ_TEXTURE
 
 	;## SETTINGS #####################
 	MOVE.W	#(X_SLICE)*bypl,D3
@@ -783,6 +772,7 @@ __BLK_4:
 	BSR.W	__LFO_EASYING
 	CMPI.W	#32,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont
+	BGE.W	__BLK_SIREN
 	LSL.W	#$4,D1
 	_PushColorsDOWN	PURPL_TBL,D1
 	LEA	Y_EASYING_TBL,A0
@@ -1592,6 +1582,65 @@ __BLK_E_BIS:
 	;#################################
 	RTS
 
+__BLK_SIREN:
+	;BTST	#$F,VPOSR			; HW FRAME STROBE
+	;BNE.S	.odd
+	;MOVE.W	#$2,X_EASYING
+	;MOVE.W	#$1,Y_EASYING
+	;MOVE.W	#$1,X_INCREMENT
+	;MOVE.W	#$0,Y_INCREMENT
+	;BRA.S	.evn
+	;.odd:
+	;MOVE.W	#$1,X_EASYING
+	;MOVE.W	#$2,Y_EASYING
+	;MOVE.W	#$1,X_INCREMENT
+	;MOVE.W	#$0,Y_INCREMENT
+	;.evn:
+
+	LEA	Z_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	MOVE.W	D1,X_EASYING
+	LEA	K_EASYING_TBL,A0
+	BSR.W	__LFO_EASYING
+	MOVE.W	D1,Y_EASYING
+	;
+	MOVE.W	#$1,Y_HALF_SHIFT
+	BSR.W	__DO_HORIZ_TEXTURE
+
+	;## SETTINGS #####################
+	MOVE.W	#(X_SLICE)*bypl,D3
+	SWAP	D3
+	MOVE.W	#(Y_SLICE)/16*2,D3
+	MOVE.W	#bypl*(X_SLICE)+(bypl/2)-2,D6	; OPTIMIZE
+	BSET	#$1,D5			; BIT 1=BLIT_COLUMN	- BLIT VERTICALLY ALL PLANES
+	MOVE.L	#-1,D1
+	MOVE.W	#$0,Y_INCREMENT
+	MOVE.W	#$0,X_INCREMENT
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_0
+	;#################################
+
+	MOVE.W	#$1,X_INCREMENT
+	SUB.W	#$1,Y_EASYING
+
+	;## SETTINGS #####################
+	BCLR	#$1,D5			; NO BIT 1 = DONT BLIT VERTICALLY
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_1
+	;#################################
+
+	MOVE.W	#$1,Y_INCREMENT
+	MOVE.W	#$0,X_INCREMENT
+	ADD.W	#$1,X_EASYING
+
+	;## SETTINGS #####################
+	NEG.W	D3
+	;## PERFORM ######################
+	BSR.W	__DO_PLANE_2
+	;#################################
+	RTS
+
 __BLK_TEST:
 	MOVE.W	#$1,Y_HALF_SHIFT		; CFG
 	BSR.W	__DO_HORIZ_TEXTURE
@@ -1778,6 +1827,7 @@ __BLK_END:
 
 ;********** Fastmem Data **********
 TIMELINE:		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST
+		;DC.L __BLK_SIREN,__BLK_SIREN,__BLK_SIREN,__BLK_SIREN,__BLK_SIREN,__BLK_SIREN,__BLK_SIREN,__BLK_SIREN
 		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_0,__BLK_1,__BLK_0,__BLK_4
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
@@ -1875,6 +1925,11 @@ Z_EASYING_TBL:	DC.W $0,$1,$1,$2,$2,$3,$3,$4,$4,$5,$5,$6,$6,$7,$7,$7,$8,$8,$8,$8,
 		DC.W $5,$5,$4,$4,$4,$4,$3,$3,$3,$3,$3,$2,$2,$2,$2,$1,$1,$1,$1,$1,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
 Z_EASYING:	DC.W 0
 
+K_EASYING_IDX:	DC.W 0
+K_EASYING_TBL:	DC.W $2,$3,$2,$3,$3,$4,$5,$6,$7,$8,$9,$A,$9,$9,$9,$8,$9,$8,$7,$6,$7,$6,$5,$6,$5,$4,$3,$4,$3,$2,$3,$2
+		DC.W $2,$2,$3,$3,$4,$4,$5,$6,$7,$8,$9,$A,$9,$9,$9,$8,$9,$8,$7,$6,$7,$6,$5,$6,$5,$4,$3,$4,$3,$2,$3,$2
+K_EASYING:	DC.W 0
+
 BPL_PRECALC:	DS.W bypl*he	; Precalculated offsets
 
 BLUE_TBL:		DC.W $0002,$0004,$0007,$0009,$000B,$000C,$000E,$000F	; BLUE
@@ -1963,27 +2018,6 @@ COPPER:
 	DC.W $138,0,$13A,0	; 6
 	DC.W $13C,0,$13E,0	; 7
 
-	.SpriteColors:
-	DC.W $1A0,$0000
-	DC.W $1A2,$0FFF
-	DC.W $1A4,$018F
-	DC.W $1A6,$07DF
-
-	DC.W $1A8,$0000
-	DC.W $1AA,$0FFF
-	DC.W $1AC,$018F
-	DC.W $1AE,$07DF
-
-	DC.W $1B0,$0000
-	DC.W $1B2,$0FFF
-	DC.W $1B4,$018F
-	DC.W $1B6,$07DF
-
-	DC.W $1B8,$0000
-	DC.W $1BA,$0FFF
-	DC.W $1BC,$018F
-	DC.W $1BE,$07DF
-
 	.Waits:
 	DC.W $6E01,$FF00
 	DC.W $0108,-80	; FROM HALF SCREEN NEGATIVE MODULOS
@@ -2023,7 +2057,7 @@ COPPER_PRE:
 	DC.W $0180,$0112,$0182,$0079,$0184,$0025,$0186,$01C7
 	DC.W $0188,$0406,$018A,$0926,$018C,$0BF4,$018E,$0D21
 	DC.W $0190,$0F27,$0192,$0F8A,$0194,$0F82,$0196,$0FC0
-	DC.W $0198,$0FFF,$019A,$0000,$019C,$0000,$019E,$0000
+	DC.W $0198,$0FFF,$019A,$0FC0,$019C,$0000,$019E,$0000
 	DC.W $01A0,$018F,$01A2,$0459,$01A4,$07DF,$01A6,$0FFF
 	DC.W $01A8,$0000,$01AA,$0000,$01AC,$0000,$01AE,$0000
 	DC.W $01B0,$0000,$01B2,$0000,$01B4,$0000,$01B6,$0000
@@ -2042,7 +2076,28 @@ COPPER_PRE:
 	DC.W $F2,0
 	DC.W $F4,0
 	DC.W $F6,0		;full 6 ptrs, in case you increase bpls
-	DC.W $100,(bpls+2)*$1000+$200	;enable bitplanes
+	DC.W $100,(bpls+1)*$1000+$200	;enable bitplanes
+
+	.SpriteColors:
+	DC.W $1A0,$0000
+	DC.W $1A2,$0FFF
+	DC.W $1A4,$018F
+	DC.W $1A6,$07DF
+
+	DC.W $1A8,$0000
+	DC.W $1AA,$0FFF
+	DC.W $1AC,$018F
+	DC.W $1AE,$07DF
+
+	DC.W $1B0,$0000
+	DC.W $1B2,$0FFF
+	DC.W $1B4,$018F
+	DC.W $1B6,$07DF
+
+	DC.W $1B8,$0000
+	DC.W $1BA,$0FFF
+	DC.W $1BC,$018F
+	DC.W $1BE,$07DF
 
 	.SpritePointers:
 	DC.W $120,0,$122,0	; 0
