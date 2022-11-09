@@ -19,7 +19,7 @@ hband		EQU 10		; lines reserved for textscroller
 hblit		EQU he/2		;-hband	; size of blitter op without textscroller
 wblit		EQU wi/2/16*2
 bypl_real		EQU wi/16*2
-TEXTURE_PIXELS	EQU 24
+TEXTURE_PIXELS	EQU 48
 TEXTURE_H		EQU TEXTURE_PIXELS*8*bpls
 X_2X_SLICE	EQU 9
 X_SLICE		EQU 26
@@ -82,11 +82,11 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	ADD.L	#bypl*he,A0
 	LEA	COPPER_PRE\.BplPtrs+24,A1
 	BSR.W	PokePtrs
-	ADD.L	#bypl*he,A0
-	LEA	COPPER_PRE\.BplPtrs+32,A1
-	BSR.W	PokePtrs
-	BSR.W	WaitEOF			; TO SLOW DOWN :)
+	;ADD.L	#bypl*he,A0
+	;LEA	COPPER_PRE\.BplPtrs+32,A1
+	;BSR.W	PokePtrs
 	MOVE.L	#COPPER_PRE,COP1LC
+	BSR.W	WaitEOF			; TO SLOW DOWN :)
 
 	LEA	BGPLANE0,A0
 	LEA	COPPER\.BplPtrs,A1
@@ -359,7 +359,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#28,D0
+	MOVE.B	#46,D0
 	LEA	$DFF000,A6
 	JSR	P61_SetPosition
 	SUB.W	#1,P61_Pos
@@ -430,9 +430,20 @@ __MIRROR_PLANE:
 	LEA	40(A4),A5
 	MOVE.W	#TEXTURE_H*bpls-1,D4 ; QUANTE LINEE
 	.outerloop:		; NUOVA RIGA
+	MOVE.B	$DFF007,$DFF1B2	; SHOW ACTIVITY :)
+	MOVE.W	$DFF006,$DFF1AA	; SHOW ACTIVITY :)
+	MOVE.B	$BFD800,$DFF1BA	; SHOW ACTIVITY :)
+	MOVE.W	$DFF006,$DFF1BE	; SHOW ACTIVITY :)
 	MOVE.W	#(bypl/2)-1,D6
 	.innerloop:
-	MOVE.B	$DFF007,$DFF19A	; SHOW ACTIVITY :)
+	MOVE.B	$BFD800,$DFF1A2	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF1A6	; SHOW ACTIVITY :)
+	MOVE.B	$BFD800,$DFF1AE	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF1B6	; SHOW ACTIVITY :)
+	MOVE.W	$DFF006,$DFF1BA	; SHOW ACTIVITY :)
+	MOVE.B	$BFD800,$DFF1BE	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF1AA	; SHOW ACTIVITY :)
+
 	MOVE.B	(A3)+,D5
 
 	MOVE.B	D5,D0
@@ -450,9 +461,16 @@ __MIRROR_PLANE:
 __FILL_MIRROR_TEXTURE:
 	MOVE.W	#TEXTURE_H*bpls-1,D4 ; QUANTE LINEE
 	.outerloop:		; NUOVA RIGA
+	MOVE.W	$DFF006,$DFF1AA	; SHOW ACTIVITY :)
+	MOVE.W	$BFD800,$DFF1BA	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF1B2	; SHOW ACTIVITY :)
+	MOVE.W	$DFF006,$DFF1BE	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF1A2	; SHOW ACTIVITY :)
 	MOVE.W	#(bypl/4)-1,D6	; RESET D6
 	.innerloop:		; LOOP KE CICLA LA BITMAP
-	MOVE.W	$DFF006,$DFF19A	; SHOW ACTIVITY :)
+	MOVE.B	$BFD800,$DFF1AE	; SHOW ACTIVITY :)
+	MOVE.W	$DFF006,$DFF1A6	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF1B6	; SHOW ACTIVITY :)
 
 	CLR.L	D5
 	MOVE.L	(A3),D5
@@ -476,7 +494,11 @@ __EXPAND_PIXELS:
 	MOVE.L	#$AA5AAA5A,D2
 	MOVE.W	#TEXTURE_H/8*bpls-1,D7 ; 40 WORDS, 20PX, xBPL
 	.outerloop:		; NUOVA RIGA
-	MOVE.B	$BFD800,$DFF19A	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF1B6	; SHOW ACTIVITY :)
+	MOVE.B	$BFD800,$DFF1A2	; SHOW ACTIVITY :)
+	MOVE.W	$DFF006,$DFF1A6	; SHOW ACTIVITY :)
+	MOVE.B	$DFF007,$DFF1BA	; SHOW ACTIVITY :)
+	MOVE.B	$BFD800,$DFF1AE	; SHOW ACTIVITY :)
 	;BSR.W	WaitEOF		; TO SLOW DOWN :)
 
 	MOVE.L	(A3)+,D0		; FIRST 16 PIXEL
@@ -484,6 +506,10 @@ __EXPAND_PIXELS:
 
 	MOVEQ	#$A,D4		; 20 PIXEL, 2 BITS AT THE TIME = 10
 	.lineLoop:
+	MOVE.B	$BFD800,$DFF1B2	; SHOW ACTIVITY :)
+	MOVE.W	$BFD800,$DFF1AA	; SHOW ACTIVITY :)
+	MOVE.W	$DFF006,$DFF1BE	; SHOW ACTIVITY :)
+
 	CLR.W	D1		; EXPAND LINE
 	BTST	#$1,D0		; SECOND BIT SET?
 	BNE.S	.not1
@@ -499,7 +525,7 @@ __EXPAND_PIXELS:
 	;BLO.S	.dontDither
 	TST.B	D1
 	BNE.S	.dontDither
-	BSR.S	_RandomByte	; D5 IS RND NOW
+	BSR.W	_RandomByte	; D5 IS RND NOW
 	AND.B	#$A,D5
 	TST.B	D5
 	BNE.S	.dontDither
@@ -1398,19 +1424,22 @@ __BLK_D:
 	_PushColorsDOWN	BLUE_TBL,D1
 
 	MOVE.W	#$2,D1
-	BRA.S	.Jump1
+	BRA.W	.Jump1
 
 	.Jump3:
 	MOVE.W	#$2,D1
 	CMPI.W	#32,D7			; WORKS STRAIGHT!
-	BLO.S	.Jump1
+	BLO.W	.Jump1
 
 	.Jump2:
 	_SplitNoteInstr	P61_CH0_INST,D1	; USE A MACRO NOW
 	CMP.B	#$A,D1
 	BNE.S	.noTexture
 	MOVE.W	#$2,Y_HALF_SHIFT
+	MOVE.W	#$2,X_EASYING
+	MOVE.W	#$2,Y_EASYING
 	BSR.W	__DO_HORIZ_TEXTURE
+	BRA.W	.Dont2
 	.noTexture:
 	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
 
@@ -1478,7 +1507,7 @@ __BLK_D:
 __BLK_E:
 	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
 	CMP.W	#$12,D1
-	BEQ.W	__BLK_7\.ForceColor
+	BEQ.W	__BLK_8\.Dont
 
 	_PushColorsDOWN	MAIN_TBL,#4*8
 	BSR.W	__SPLIT_COPPER_QUARTER
@@ -1544,10 +1573,16 @@ __BLK_E_PRE:
 __BLK_E_BIS:
 	_SplitNoteInstr	P61_CH3_INST,D1	; USE A MACRO NOW
 	CMP.W	#$12,D1
-	BEQ.W	__BLK_5
+	BEQ.W	__BLK_1
 
+	CMP.W	#32,D7
+	BGE.S	.backWards
 	MOVE.W	D7,D1
-	LSR.W	#$2,D1
+	BRA.S	.forWard
+	.backWards:
+	MOVE.W	P61_rowpos,D1
+	.forWard:
+	LSR.W	#$1,D1
 	LSL.W	#$4,D1
 
 	_PushColorsDOWN	PURPL_TBL,D1
@@ -1862,12 +1897,12 @@ TIMELINE:		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TE
 		DC.L __BLK_1,__BLK_2,__BLK_1,__BLK_3
 		DC.L __BLK_5,__BLK_6,__BLK_A,__BLK_MULTI
 		DC.L __BLK_C,__BLK_C,__BLK_C_PRE,__BLK_C
-		DC.L __BLK_D,__BLK_D\.Jump3,__BLK_D\.Jump3,__BLK_D\.Jump2
+		DC.L __BLK_D\.Jump3,__BLK_D\.Jump3,__BLK_D\.Jump3,__BLK_D\.Jump2
 		DC.L __BLK_D\.Jump2,__BLK_D\.Jump2,__BLK_D\.Jump2,__BLK_D_PRE	; SIREN?
 		DC.L __BLK_E,__BLK_E,__BLK_E,__BLK_E
 		DC.L __BLK_E_BIS,__BLK_E_BIS,__BLK_E_BIS,__BLK_E_PRE
-		DC.L __BLK_A\.noColorReset,__BLK_A\.noColorReset,__BLK_0,__BLK_0
-		DC.L __BLK_3,__BLK_3,__BLK_4,__BLK_1
+		DC.L __BLK_A\.noColorReset,__BLK_A\.noColorReset,__BLK_0\.Dont,__BLK_0\.Dont
+		DC.L __BLK_0,__BLK_D
 
 BPL_PTR_BUF:	DC.L 0
 AUDIOCHLEVEL0NRM:	DC.W 0
@@ -2151,15 +2186,13 @@ COPPER_PRE:
 	DC.W $13C,0,$13E,0	; 7
 
 	.Waits:
-
 	DC.W $B001,$FF00	; SpritesRecolor
 	DC.W $01BC,$0459	; SpritesRecolor
 	DC.W $B501,$FF00	; SpritesRecolor
 	DC.W $01A4,$0459	; SpritesRecolor
 	DC.W $01AC,$0459	; SpritesRecolor
 
-	DC.W $FFDF,$FFFE	; allow VPOS>$ff
-	DC.W $3501,$FF00	; ## RASTER END ## #$12C?
+	;DC.W $FFDF,$FFFE	; allow VPOS>$ff
 	DC.W $FFFF,$FFFE	; magic value to end copperlist
 
 ;*******************************************************************************
