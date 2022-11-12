@@ -359,7 +359,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#46,D0
+	MOVE.B	#10,D0
 	LEA	$DFF000,A6
 	JSR	P61_SetPosition
 	SUB.W	#1,P61_Pos
@@ -801,6 +801,7 @@ __BLK_1:
 	BSR.W	__DO_PLANE_2
 	;#################################
 	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
+	MOVE.W	#$0,K_EASYING_IDX
 	RTS
 
 __BLK_3:
@@ -934,6 +935,18 @@ __BLK_6:
 	_PushColorsUP	MAIN_TBL,#$0
 	BSR.W	__SPLIT_COPPER_HALF
 	.noColorReset:
+	BRA.S	.Skip
+
+	.CheckVox:
+	CMPI.W	#28,D7			; WORKS STRAIGHT!
+	BLO.W	.Skip
+	MOVE.W	P61_rowpos,D1
+	ADD.W	#10,D1
+	LSR.W	#$1,D1
+	LSL.W	#$4,D1
+	_PushColorsUP	BLUE_TBL,D1
+
+	.Skip:
 	MOVE.W	#$1,X_EASYING
 	MOVE.W	#$1,Y_EASYING
 	;MOVE.W	Y_EASYING,Y_HALF_SHIFT
@@ -983,11 +996,23 @@ __BLK_6:
 	.DontDo2:
 	RTS
 
+__BLK_7_PRE_2:
+	_PushColorsDOWN	BLUE_TBL,#0
+	BRA.S	__BLK_7
+
+__BLK_7_PRE:
+	CMPI.W	#54,D7			; WORKS STRAIGHT!
+	BGE.S	__BLK_7
+	MOVE.W	P61_rowpos,D1
+	SUB.W	#10,D1
+	LSR.W	#$2,D1
+	LSL.W	#$4,D1
+	_PushColorsUP	BLUE_TBL,D1
 __BLK_7:
 	TST.W	D7
 	BNE.S	.noColorReset
 	.ForceColor:
-	_PushColorsDOWN	PURPL_TBL,#$0
+	;_PushColorsDOWN	PURPL_TBL,#$0
 	BSR.W	__SPLIT_COPPER_HALF
 	.noColorReset:
 
@@ -997,6 +1022,7 @@ __BLK_7:
 	BSR.W	__DO_HORIZ_TEXTURE
 	.noTexture:
 
+	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
 	;## SETTINGS #####################
 	MOVE.W	#(X_SLICE)*bypl,D3
 	SWAP	D3
@@ -1371,7 +1397,7 @@ __BLK_C:
 	MOVE.W	#$0,X_INCREMENT
 	MOVE.W	#$0,Y_INCREMENT
 	LEA	X_EASYING_TBL,A0
-	BRA.S	.Skip
+	;BRA.S	.Skip
 	.Not07:
 	;CMP.B	#$17,D1			; CRASH
 	;BEQ.W	__BLK_A_BIS
@@ -1888,8 +1914,8 @@ __BLK_END:
 TIMELINE:		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST
 		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_0,__BLK_1,__BLK_0,__BLK_4
-		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6
-		DC.L __BLK_7,__BLK_7,__BLK_7,__BLK_8
+		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6\.CheckVox
+		DC.L __BLK_7_PRE,__BLK_7,__BLK_7_PRE_2,__BLK_8
 		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9
 		DC.L __BLK_9,__BLK_9,__BLK_9,__BLK_9\.Dont0
 		DC.L __BLK_A\.noTexture,__BLK_A,__BLK_A,__BLK_A
