@@ -12,19 +12,10 @@ he		EQU 256		; screen height
 bpls		EQU 3		; depth
 bypl		EQU wi/16*2	; byte-width of 1 bitplane line (40bytes)
 bwid		EQU bpls*bypl	; byte-width of 1 pixel line (all bpls)
-blitsize		EQU he*64+wi/16	; size of blitter operation
-blitsizeF		EQU %000000000000010101	; size of FULL blitter operation
-bplsize		EQU bypl*he	; size of 1 bitplane screen
-hband		EQU 10		; lines reserved for textscroller
-hblit		EQU he/2		;-hband	; size of blitter op without textscroller
-wblit		EQU wi/2/16*2
-bypl_real		EQU wi/16*2
-TEXTURE_PIXELS	EQU 48
+TEXTURE_PIXELS	EQU 49
 TEXTURE_H		EQU TEXTURE_PIXELS*8*bpls
-X_2X_SLICE	EQU 9
 X_SLICE		EQU 26
 Y_SLICE		EQU 32
-;*************
 MODSTART_POS	EQU 0		; start music at position # !! MUST BE EVEN FOR 16BIT
 ;*************
 
@@ -72,21 +63,20 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	BSR.W	__POKE_SPRITE_POINTERS
 	LEA	PIC,A0
 	LEA	COPPER_PRE\.BplPtrs,A1
-	BSR.W	PokePtrs
+	BSR.W	PokePtrsOld
 	ADD.L	#bypl*he,A0
 	LEA	COPPER_PRE\.BplPtrs+8,A1
-	BSR.W	PokePtrs
+	BSR.W	PokePtrsOld
 	ADD.L	#bypl*he,A0
 	LEA	COPPER_PRE\.BplPtrs+16,A1
-	BSR.W	PokePtrs
+	BSR.W	PokePtrsOld
 	ADD.L	#bypl*he,A0
 	LEA	COPPER_PRE\.BplPtrs+24,A1
-	BSR.W	PokePtrs
+	BSR.W	PokePtrsOld
 	;ADD.L	#bypl*he,A0
 	;LEA	COPPER_PRE\.BplPtrs+32,A1
-	;BSR.W	PokePtrs
+	;BSR.W	PokePtrsOld
 	MOVE.L	#COPPER_PRE,COP1LC
-	BSR.W	WaitEOF			; TO SLOW DOWN :)
 
 	LEA	BGPLANE0,A0
 	LEA	COPPER\.BplPtrs,A1
@@ -125,10 +115,6 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	BSR.W	__MIRROR_PLANE
 	BSR.W	WaitEOF			; TO SLOW DOWN :)
 
-	;MOVE.L	#DITHERPLANE,A4		; FILLS A PLANE #DITHERPLANE
-	;MOVE.W	#0,D0
-	;BSR.W	__DITHER_PLANE		; WITH DITHERING
-
 	MOVE.W	#$1,Y_HALF_SHIFT		; CFG
 	.fillInitialScreen:			; TO START WITH A POPULATED SCREEN!
 	BSR.W	WaitEOF			; TO SLOW DOWN :)
@@ -162,21 +148,12 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVEM.L (SP)+,D0-A6
 ;********************  main loop  ********************
 MainLoop:
-	;BTST	#$F,VPOSR			; HW FRAME STROBE
-	;BEQ.S	.odd
-	;MOVE.W	#$0000,$DFF180		; SHOW ACTIVITY :)
-	;BRA.S	.evn
-	;.odd:
-	;MOVE.W	#$0FFF,$DFF180		; SHOW ACTIVITY :)
-	;.evn:
-	
+
 	BSR.W	__SET_PT_VISUALS
 	; do stuff here :)
 	;SONG_BLOCKS_EVENTS:
 	;* FOR TIMED EVENTS ON BLOCK ****
-	;MOVE.W	P61_LAST_POS,D5
 	MOVE.W	P61_Pos,D5
-	;MOVE.W	#$0,D5
 	LEA	TIMELINE,A3
 	ADD.W	D5,D5			; CALCULATES OFFSET (OPTIMIZED)
 	ADD.W	D5,D5			; CALCULATES OFFSET (OPTIMIZED)
@@ -190,19 +167,6 @@ MainLoop:
 	;MOVE.W	#$0F00,$DFF180		; show rastertime left down to $12c
 	MOVE.W	#$8010,INTENA
 
-	;TST.B	FRAME_STROBE
-	;BNE.W	.oddFrame
-	;MOVE.B	#1,FRAME_STROBE
-	;BRA.W	.evenFrame
-	;.oddFrame:
-	;MOVE.B	#0,FRAME_STROBE
-	;.evenFrame:
-	;LSR.W	#$1,D7		; CHECK_ODD:
-	;BCC.S	.odd
-	;BRA.S	.done
-	;.odd:
-	;.done:
-
 	;*--- main loop end ---*
 	;ENDING_CODE:
 	BTST	#6,$BFE001
@@ -212,7 +176,7 @@ MainLoop:
 	BTST	#2,$DFF016	; POTINP - RMB pressed?
 	BNE.W	MainLoop		; then loop
 	;*--- exit ---*
-	;;    ---  Call P61_End  ---
+	;*---  Call P61_End  ---
 	MOVEM.L D0-A6,-(SP)
 	JSR P61_End
 	MOVEM.L (SP)+,D0-A6
@@ -223,17 +187,24 @@ PokePtrs:				; SUPER SHRINKED REFACTOR
 	MOVE.L	A0,-4(A0)		; Needs EMPTY plane to write addr
 	MOVE.W	-4(A0),2(A1)	; high word of address
 	MOVE.W	-2(A0),6(A1)	; low word of address
-	;CLR.L	-4(A0)
+	RTS
+
+PokePtrsOld:			; Generic, poke ptrs into copper list
+	MOVE.L	A0,D2
+	SWAP	D2
+	MOVE.W	D2,2(A1)		; high word of address
+	MOVE.W	A0,6(A1)		; low word of address
+	LEA	8(A1),A1		; OPTIMIZED
 	RTS
 
 __WIPE_PLANE:			; a1=screen destination address to clear
-	BSR	WaitBlitter
-	MOVE.W	#$0,BLTDMOD		; Init modulo Sou. A
-	MOVE.L	#$01000000,BLTCON0		; set operation type in BLTCON0/1
-	MOVE.L	A1,BLTDPTH		; destination address
-	MOVE.W	#32*64+wi/16,BLTSIZE	; blitter operation size
-	BSR	WaitBlitter
-	RTS
+	;BSR	WaitBlitter
+	;MOVE.W	#$0,BLTDMOD		; Init modulo Sou. A
+	;MOVE.L	#$01000000,BLTCON0		; set operation type in BLTCON0/1
+	;MOVE.L	A1,BLTDPTH		; destination address
+	;MOVE.W	#32*64+wi/16,BLTSIZE	; blitter operation size
+	;BSR	WaitBlitter
+	;RTS
 
 VBint:				; Blank template VERTB interrupt
 	movem.l	d0/a6,-(sp)	; Save used registers
@@ -407,24 +378,6 @@ __POKE_SPRITE_POINTERS:
 	SWAP	D0
 	MOVE.W	D0,2(A1)
 	RTS
-
-__DITHER_PLANE:
-	;MOVE.L	A4,A4
-	;MOVE.W	#he-1,D4		; QUANTE LINEE
-	;MOVE.L	#$AAAAAAAA,D5
-	;.outerloop:		; NUOVA RIGA
-	;MOVE.W	#(bypl/4)-1,D6	; RESET D6
-	;NOT.L	D5
-	;.innerloop:		; LOOP KE CICLA LA BITMAP
-	;MOVE.W	$DFF006,$DFF180	; SHOW ACTIVITY :)
-	;MOVE.L	D5,(A4)+
-	;DBRA	D6,.innerloop
-	;TST.W	D0
-	;BEQ.S	.noWait
-	;BSR.W	WaitEOF		; TO SLOW DOWN :)
-	;.noWait:
-	;DBRA	D4,.outerloop
-	;RTS
 
 __MIRROR_PLANE:
 	LEA	40(A4),A5
@@ -1445,7 +1398,7 @@ __BLK_C:
 	BRA.W	__SPLIT_COPPER_HALF
 	RTS
 
-__BLK_D_PRE:	; ## SIREN ##
+__BLK_D_PRE:; ## SIREN ##
 	MOVE.W	AUDIOCHLEVEL1,D1		; THIS IS FOR COLOR CHANGE IN SIREN
 	CMPI.W	#32,D7			; WORKS STRAIGHT!
 	BGE.W	__BLK_SIREN
@@ -1936,62 +1889,22 @@ TIMELINE:		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TE
 		DC.L __BLK_A\.noColorReset,__BLK_A\.noColorReset,__BLK_0\.Dont,__BLK_0\.Dont
 		DC.L __BLK_0,__BLK_D
 
-BPL_PTR_BUF:	DC.L 0
-AUDIOCHLEVEL0NRM:	DC.W 0
 AUDIOCHLEVEL0:	DC.W 1
 AUDIOCHLEVEL1:	DC.W 1
 AUDIOCHLEVEL2:	DC.W 1
 AUDIOCHLEVEL3:	DC.W 1
-P61_LAST_POS:	DC.W MODSTART_POS
-P61_DUMMY_POS:	DC.W 0
-P61_FRAMECOUNT:	DC.W 0
 P61_SEQ_POS:	DC.W 0
 P61_DUMMY_SEQPOS:	DC.W 63
 P61_ROW_INDEX:	DC.W 0		; $0-$F
-SCROLL_INDEX:	DC.W 0
-SCROLL_PLANE:	DC.L 0
-SCROLL_SRC:	DC.L 0
-SPR_0_POS:	DC.B $7C		; K
-SPR_1_POS:	DC.B $84		; O
-SPR_2_POS:	DC.B $8C		; N
-SPR_3_POS:	DC.B $94		; E
-SPR_4_POS:	DC.B $9C		; Y
-SCROLL_SHIFT:	DC.B 0
-BLIT_COLUMN:	DC.B 0
-SCROLL_SHIFT_Y:	DC.B 2
-SCROLL_DIR_X:	DC.B 1		; 0=LEFT 1=RIGHT
-SCROLL_DIR_Y:	DC.B 0		; 0=LEFT 1=RIGHT
-SCROLL_DIR_0:	DC.B 1
-SCROLL_DIR_1:	DC.B 1
-SCROLL_DIR_2:	DC.B 1
-SCROLL_DIR_3:	DC.B 1
-TEXTINDEX:	DC.W 0
-DUMMY_FRAME_COUNT:	DC.B 0
-FRAME_STROBE:	DC.B 0
+DUMMY_FRAME_COUNT:	DC.B 0,0
 BLIT_Y_MASK:	DC.W $FFFF
 BLIT_X_MASK:	DC.W $FFFF
 BLIT_A_MOD:	DC.W 0
 BLIT_D_MOD:	DC.W 0
-BLIT_SIZE:	DC.W 2*64+wi/2/16
-
-X_CYCLES_COUNTER:	DC.W 15
-X_1_4_DIR:	DC.B -1		; -1=LEFT 1=RIGHT
-Y_1_4_DIR:	DC.B -1		; -1=LEFT 1=RIGHT
-X_1_4_SHIFT:	DC.W 3
-Y_1_4_SHIFT:	DC.W 10
-X_HALF_DIR:	DC.B -1
-Y_HALF_DIR:	DC.B 1
 X_HALF_SHIFT:	DC.W 0
 Y_HALF_SHIFT:	DC.W 2
 X_INCREMENT:	DC.W 1
 Y_INCREMENT:	DC.W 1
-
-X_PROGR_DIR:	DC.B -1
-Y_PROGR_DIR:	DC.B 1
-X_PROGR_TYPE:	DC.B 1
-Y_PROGR_TYPE:	DC.B 1		; SOLO POSITIVO
-X_PROGR_SHIFT:	DC.W 1
-
 KICKSTART_ADDR:	DC.L $F80000	; POINTERS TO BITMAPS
 TEXTURERESET5:	DC.L X_TEXTURE_MIRROR+TEXTURE_H*bypl
 		DC.L X_TEXTURE_MIRROR+TEXTURE_H*bypl
@@ -2071,15 +1984,29 @@ COPPER:
 	DC.W $102,0	; SCROLL REGISTER (AND PLAYFIELD PRI)
 
 	.Palette:
-	;DC.W $0180,$0004,$0182,$0006,$0184,$0207,$0186,$0407
-	;DC.W $0188,$0607,$018A,$0907,$018C,$0D07,$018E,$0F06
-	;DC.W $0180,$0003,$0182,$0005,$0184,$0007,$0186,$0009
-	;DC.W $0188,$000B,$018A,$000D,$018C,$000F,$018E,$020F
-	;DC.W $0180,$0003,$0182,$0104,$0184,$0106,$0186,$0207
-	;DC.W $0188,$0209,$018A,$030B,$018C,$030D,$018E,$040E
-
 	DC.W $0190,$0888,$0192,$0F00,$0194,$00F0,$0196,$000F
 	DC.W $0198,$0FFF,$019A,$000A,$019C,$0FFF,$019E,$000F
+
+	.SpriteColors:
+	DC.W $01A0,$0000
+	DC.W $01A2,$0FFF
+	DC.W $01A4,$018F
+	DC.W $01A6,$07DF
+
+	DC.W $01A8,$0000
+	DC.W $01AA,$0FFF
+	DC.W $01AC,$018F
+	DC.W $01AE,$07DF
+
+	DC.W $01B0,$0000
+	DC.W $01B2,$0FFF
+	DC.W $01B4,$018F
+	DC.W $01B6,$07DF
+
+	DC.W $01B8,$0000
+	DC.W $01BA,$0FFF
+	DC.W $01BC,$018F
+	DC.W $01BE,$07DF
 
 	.BplPtrs:
 	DC.W $E0,0
@@ -2096,36 +2023,15 @@ COPPER:
 	DC.W $F6,0		;full 6 ptrs, in case you increase bpls
 	DC.W $100,bpls*$1000+$200	;enable bitplanes
 
-	.SpriteColors:
-	DC.W $1A0,$0000
-	DC.W $1A2,$0FFF
-	DC.W $1A4,$018F
-	DC.W $1A6,$07DF
-
-	DC.W $1A8,$0000
-	DC.W $1AA,$0FFF
-	DC.W $1AC,$018F
-	DC.W $1AE,$07DF
-
-	DC.W $1B0,$0000
-	DC.W $1B2,$0FFF
-	DC.W $1B4,$018F
-	DC.W $1B6,$07DF
-
-	DC.W $1B8,$0000
-	DC.W $1BA,$0FFF
-	DC.W $1BC,$018F
-	DC.W $1BE,$07DF
-
 	.SpritePointers:
-	DC.W $120,0,$122,0	; 0
-	DC.W $124,0,$126,0	; 1
-	DC.W $128,0,$12A,0	; 2
-	DC.W $12C,0,$12E,0	; 3
-	DC.W $130,0,$132,0	; 4
-	DC.W $134,0,$136,0	; 5
-	DC.W $138,0,$13A,0	; 6
-	DC.W $13C,0,$13E,0	; 7
+	DC.W $0120,0,$122,0	; 0
+	DC.W $0124,0,$126,0	; 1
+	DC.W $0128,0,$12A,0	; 2
+	DC.W $012C,0,$12E,0	; 3
+	DC.W $0130,0,$132,0	; 4
+	DC.W $0134,0,$136,0	; 5
+	DC.W $0138,0,$13A,0	; 6
+	DC.W $013C,0,$13E,0	; 7
 
 	.Waits:
 	DC.W $6E01,$FF00
@@ -2166,10 +2072,27 @@ COPPER_PRE:
 	DC.W $0188,$0D21,$018A,$0F82,$018C,$0FC0,$018E,$0926
 	DC.W $0190,$0406,$0192,$0025,$0194,$0124,$0196,$0123
 	DC.W $0198,$0112,$019A,$0079,$019C,$0BF4,$019E,$01C7
-	DC.W $01A0,$018F,$01A2,$0459,$01A4,$07DF,$01A6,$0FFF
-	DC.W $01A8,$0000,$01AA,$0000,$01AC,$0000,$01AE,$0000
-	DC.W $01B0,$0000,$01B2,$0000,$01B4,$0000,$01B6,$0000
-	DC.W $01B8,$0000,$01BA,$0000,$01BC,$0000,$01BE,$0000
+
+	.SpriteColors:
+	DC.W $01A0,$0000
+	DC.W $01A2,$0FFF
+	DC.W $01A4,$018F
+	DC.W $01A6,$07DF
+
+	DC.W $01A8,$0000
+	DC.W $01AA,$0FFF
+	DC.W $01AC,$018F
+	DC.W $01AE,$07DF
+
+	DC.W $01B0,$0000
+	DC.W $01B2,$0FFF
+	DC.W $01B4,$018F
+	DC.W $01B6,$07DF
+
+	DC.W $01B8,$0000
+	DC.W $01BA,$0FFF
+	DC.W $01BC,$018F
+	DC.W $01BE,$07DF
 
 	.BplPtrs:
 	DC.W $E0,0
@@ -2186,36 +2109,15 @@ COPPER_PRE:
 	DC.W $F6,0		;full 6 ptrs, in case you increase bpls
 	DC.W $100,(bpls+1)*$1000+$200	;enable bitplanes
 
-	.SpriteColors:
-	DC.W $1A0,$0000
-	DC.W $1A2,$0FFF
-	DC.W $1A4,$018F
-	DC.W $1A6,$07DF
-
-	DC.W $1A8,$0000
-	DC.W $1AA,$0FFF
-	DC.W $1AC,$018F
-	DC.W $1AE,$07DF
-
-	DC.W $1B0,$0000
-	DC.W $1B2,$0FFF
-	DC.W $1B4,$018F
-	DC.W $1B6,$07DF
-
-	DC.W $1B8,$0000
-	DC.W $1BA,$0FFF
-	DC.W $1BC,$018F
-	DC.W $1BE,$07DF
-
 	.SpritePointers:
-	DC.W $120,0,$122,0	; 0
-	DC.W $124,0,$126,0	; 1
-	DC.W $128,0,$12A,0	; 2
-	DC.W $12C,0,$12E,0	; 3
-	DC.W $130,0,$132,0	; 4
-	DC.W $134,0,$136,0	; 5
-	DC.W $138,0,$13A,0	; 6
-	DC.W $13C,0,$13E,0	; 7
+	DC.W $0120,0,$122,0	; 0
+	DC.W $0124,0,$126,0	; 1
+	DC.W $0128,0,$12A,0	; 2
+	DC.W $012C,0,$12E,0	; 3
+	DC.W $0130,0,$132,0	; 4
+	DC.W $0134,0,$136,0	; 5
+	DC.W $0138,0,$13A,0	; 6
+	DC.W $013C,0,$13E,0	; 7
 
 	.Waits:
 	DC.W $B001,$FF00	; SpritesRecolor

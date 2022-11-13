@@ -68,7 +68,7 @@ Start:
 	rts			;back to AmigaDOS/Workbench.
 
 	.GetVBR:
-	dc.w	$4e7a,$c801		;hex for "movec VBR,a4"
+	dc.w	$4e7a,$c801	;hex for "movec VBR,a4"
 	rte			;return from Supervisor mode
 
 	.GfxLib:
@@ -90,7 +90,7 @@ WaitRaster:			;Wait for scanline d0. Trashes d1.
 AllOff:	
 	move.w	#$7fff,d2		;clear all bits
 	move.w	d2,DMACON		;in DMACON,
-	;move.w	d2,INTENA		;INTENA,	; DONT RESET FOR MED PLAYER
+	move.w	d2,INTENA		;INTENA,	; DONT RESET FOR MED PLAYER
 IntReqD2:
 	move.w	d2,INTREQ		;and INTREQ
 	move.w	d2,INTREQ		;twice for A4000 compatibility
