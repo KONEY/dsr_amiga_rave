@@ -115,29 +115,25 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	BSR.W	__MIRROR_PLANE
 	BSR.W	WaitEOF			; TO SLOW DOWN :)
 
+	BSR.W	_test_cpu_type
+
 	MOVE.W	#$1,Y_HALF_SHIFT		; CFG
 	.fillInitialScreen:			; TO START WITH A POPULATED SCREEN!
 	BSR.W	WaitEOF			; TO SLOW DOWN :)
 	BSR.W	__BLK_TEST\.Dont
 	BSR.W	WaitEOF			; TO SLOW DOWN :)
+	BSR.W	WaitEOF			; TO SLOW DOWN :)
 	LEA	BGPLANE0,A1
 	TST.L	(A1)
 	BEQ.S	.fillInitialScreen
-
-	;LEA	BLEEDFINAL,A1
-	;BSR.W	__WIPE_PLANE
 
 	BSR.W	__SWAP_ODD_EVEN_PTRS
 	; #### Point LOGO sprites
 	LEA	COPPER\.SpritePointers,A1
 	BSR.W	__POKE_SPRITE_POINTERS
-	; ## CPU COPPER :) ##
-	_PushColorsDown	BLUE_TBL,#$0
-	; ## CPU COPPER :) ##
 	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
 
-	MOVE.L	#COPPER,COP1LC
-
+	BSR.W	WaitEOF			; TO SLOW DOWN :)
 	; ---  Call P61_Init  ---
 	MOVEM.L	D0-A6,-(SP)
 	LEA	MODULE,A0
@@ -146,9 +142,15 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	MOVE.W	#MODSTART_POS,P61_InitPos	; TRACK START OFFSET
 	JSR	P61_Init
 	MOVEM.L (SP)+,D0-A6
+
+	MOVE.L	#COPPER,COP1LC
+
+	; ## CPU COPPER :) ##
+	_PushColorsDown	BLUE_TBL,#$0
+	; ## CPU COPPER :) ##
+
 ;********************  main loop  ********************
 MainLoop:
-
 	BSR.W	__SET_PT_VISUALS
 	; do stuff here :)
 	;SONG_BLOCKS_EVENTS:
@@ -197,14 +199,34 @@ PokePtrsOld:			; Generic, poke ptrs into copper list
 	LEA	8(A1),A1		; OPTIMIZED
 	RTS
 
-__WIPE_PLANE:			; a1=screen destination address to clear
-	;BSR	WaitBlitter
-	;MOVE.W	#$0,BLTDMOD		; Init modulo Sou. A
-	;MOVE.L	#$01000000,BLTCON0		; set operation type in BLTCON0/1
-	;MOVE.L	A1,BLTDPTH		; destination address
-	;MOVE.W	#32*64+wi/16,BLTSIZE	; blitter operation size
-	;BSR	WaitBlitter
-	;RTS
+_test_cpu_type:
+	move.l	4.w,a0
+	move.b	$129(a0),d0
+	move.l	#$1,d1	;68040
+	btst	#$03,d0
+	bne.b	.exit
+	move.l	#$1,d1	;68030
+	btst	#$02,d0
+	bne.b	.exit
+	move.l	#$1,d1	;68020	; MAYBE NOT
+	btst	#$01,d0
+	bne.b	.exit
+	move.l	#$0,d1	;68010
+	btst	#$00,d0
+	bne.b	.exit
+	move.l	#$0,d1	;68000
+	.exit:
+	TST.W	D1
+	BNE.S	.dirtySmcTrick
+	RTS
+	.dirtySmcTrick:		; IF FAST CPU PREVENT COPPER RASTERWAIT SKIPS
+	;MOVE.W	#$6000|(__DISABLE_INTENA_WAIT\.skip-(__DISABLE_INTENA_WAIT+2)),__DISABLE_INTENA_WAIT
+	MOVE.W	#$4E75,__DISABLE_INTENA_WAIT	; mock a RTS
+	RTS
+
+__DISABLE_INTENA_WAIT:		; DISABLE WAITRASTER FOR THIS FX
+	MOVE.W	#$0010,INTENA
+	RTS
 
 VBint:				; Blank template VERTB interrupt
 	movem.l	d0/a6,-(sp)	; Save used registers
@@ -330,7 +352,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#40,D0
+	MOVE.B	#14,D0
 	LEA	$DFF000,A6
 	JSR	P61_SetPosition
 	SUB.W	#1,P61_Pos
@@ -700,7 +722,8 @@ __BLK_1:
 	CMPI.W	#28,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont
 	.full:
-	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
+	CLR.W	$100				; DEBUG | w 0 100 2
+	BSR.W	__DISABLE_INTENA_WAIT
 	LEA	Z_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
 	MOVE.W	D1,Y_HALF_SHIFT
@@ -974,7 +997,7 @@ __BLK_7:
 	BSR.W	__DO_HORIZ_TEXTURE
 	.noTexture:
 
-	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
+	BSR.W	__DISABLE_INTENA_WAIT
 	;## SETTINGS #####################
 	MOVE.W	#(X_SLICE)*bypl,D3
 	SWAP	D3
@@ -1129,7 +1152,7 @@ __BLK_9:
 	RTS
 
 __BLK_A:
-	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
+	BSR.W	__DISABLE_INTENA_WAIT
 	_SplitNoteInstr	P61_CH0_INST,D1	; NEW VALUES FROM P61
 	CMP.B	#$17,D1
 	BNE.S	.noTexture
@@ -1184,7 +1207,7 @@ __BLK_A:
 	RTS
 
 __BLK_B:
-	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
+	BSR.W	__DISABLE_INTENA_WAIT
 	TST.W	D7
 	BNE.S	.noColorReset
 	_PushColorsDOWN	MAIN_TBL,#$0
@@ -1245,7 +1268,7 @@ __BLK_A_BIS:
 	RTS
 
 __BLK_B_BIS:
-	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
+	BSR.W	__DISABLE_INTENA_WAIT
 	MOVE.W	P61_CH3_INST,D1		; NEW VALUES FROM P61
 	MOVE.W	D1,P61_CH2_INST
 	_SplitNoteInstr	P61_CH3_INST,D1	; NEW VALUES FROM P61
@@ -1258,7 +1281,7 @@ __BLK_B_BIS:
 	RTS
 
 __BLK_MULTI:
-	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
+	BSR.W	__DISABLE_INTENA_WAIT
 	;MOVE.L	#$01240000,COPPER\.SpritePointers+8
 	CMPI.W	#32,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont
@@ -1320,7 +1343,7 @@ __BLK_C:
 	;MOVE.W	#$18,Y_EASYING_IDX
 	MOVE.W	#$1,X_INCREMENT
 	MOVE.W	#$1,Y_INCREMENT
-	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
+	BSR.W	__DISABLE_INTENA_WAIT
 	;LEA	Y_EASYING_TBL,A0
 	BRA.W	.Skip
 	.Not09:
@@ -1349,7 +1372,7 @@ __BLK_C:
 	MOVE.W	#$22,Y_EASYING_IDX
 	MOVE.W	#$0,X_INCREMENT
 	MOVE.W	#$0,Y_INCREMENT
-	MOVE.W	#$0010,INTENA		; DISABLE WAITRASTER FOR THIS FX
+	BSR.W	__DISABLE_INTENA_WAIT
 	;LEA	Y_EASYING_TBL,A0
 	;BRA.S	.Skip
 	.Not07:
