@@ -1,2 +1,6 @@
 # dsr_amiga_rave
-OCS Amiga Intro
+AMIGARAVE - OCS Amiga Intro by DESiRE 2022
+CODE: KONEY
+GFX: VisionVortex
+MUSIC: Subi
+1MB Requires
