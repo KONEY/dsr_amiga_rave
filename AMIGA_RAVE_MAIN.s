@@ -352,7 +352,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#14,D0
+	MOVE.B	#8,D0
 	LEA	$DFF000,A6
 	JSR	P61_SetPosition
 	SUB.W	#1,P61_Pos
@@ -982,7 +982,7 @@ __BLK_7_PRE:
 	SUB.W	#10,D1
 	LSR.W	#$2,D1
 	LSL.W	#$4,D1
-	_PushColorsUP	BLUE_TBL,D1
+	_PushColorsDOWN	BLUE_TBL,D1
 __BLK_7:
 	TST.W	D7
 	BNE.S	.noColorReset
@@ -1889,9 +1889,6 @@ __SCROLL_COMBINED:
 	DBRA	D0,.loop
 	RTS
 
-__BLK_END:
-	RTS
-
 ;********** Fastmem Data **********
 TIMELINE:		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST
 		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
@@ -1993,7 +1990,7 @@ MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
 MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"		; code $960F
-PIC:		INCBIN "intro_VV_v2.raw"
+PIC:		INCBIN "intro_VV_v3.raw"
 
 COPPER:
 	DC.W $1FC,0	; Slow fetch mode, remove if AGA demo.
