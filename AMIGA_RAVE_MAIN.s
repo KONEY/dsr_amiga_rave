@@ -16,6 +16,7 @@ TEXTURE_PIXELS	EQU 49
 TEXTURE_H		EQU TEXTURE_PIXELS*8*bpls
 X_SLICE		EQU 26
 Y_SLICE		EQU 32
+SPLASH_DELAY	EQU 1*50
 MODSTART_POS	EQU 0		; start music at position # !! MUST BE EVEN FOR 16BIT
 ;*************
 
@@ -117,12 +118,10 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 
 	BSR.W	_test_cpu_type
 
-	MOVE.W	#$1,Y_HALF_SHIFT		; CFG
+	MOVE.W	#$1,Y_HALF_SHIFT
 	.fillInitialScreen:			; TO START WITH A POPULATED SCREEN!
-	BSR.W	WaitEOF			; TO SLOW DOWN :)
 	BSR.W	__BLK_TEST\.Dont
-	BSR.W	WaitEOF			; TO SLOW DOWN :)
-	BSR.W	WaitEOF			; TO SLOW DOWN :)
+	;BSR.W	WaitEOF			; TO SLOW DOWN :)
 	LEA	BGPLANE0,A1
 	TST.L	(A1)
 	BEQ.S	.fillInitialScreen
@@ -133,7 +132,19 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 	BSR.W	__POKE_SPRITE_POINTERS
 	; #### CPU INTENSIVE TASKS BEFORE STARTING MUSIC
 
-	BSR.W	WaitEOF			; TO SLOW DOWN :)
+	; ## KEEP IMAGE ON SCREEN FOR SOME SECONDS ##
+	MOVE.W	#SPLASH_DELAY,D0		; WAIT PAL FRAMES
+	.WaitRasterCopper:
+	;MOVE.B	D0,$DFF180		; SHOW ACTIVITY :)
+	BTST	#$4,INTENAR+1
+	BNE.S	.WaitRasterCopper
+	;MOVE.W	#$000F,$DFF180		; SHOW ACTIVITY :)
+	MOVE.W	#$8010,INTENA
+	SUB.W	#$1,D0
+	TST.W	D0
+	BNE.S	.WaitRasterCopper
+	; ## KEEP IMAGE ON SCREEN FOR SOME SECONDS ##
+
 	; ---  Call P61_Init  ---
 	MOVEM.L	D0-A6,-(SP)
 	LEA	MODULE,A0
@@ -147,7 +158,6 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 
 	; ## CPU COPPER :) ##
 	_PushColorsDown	BLUE_TBL,#$0
-	; ## CPU COPPER :) ##
 
 ;********************  main loop  ********************
 MainLoop:
@@ -352,7 +362,7 @@ __SET_PT_VISUALS:
 __BLK_JMP:
 	;* Input:	D0.b=songposition. A6=your custombase ("$dff000")
 	CLR.L	D0
-	MOVE.B	#8,D0
+	MOVE.B	#59,D0
 	LEA	$DFF000,A6
 	JSR	P61_SetPosition
 	SUB.W	#1,P61_Pos
@@ -677,7 +687,7 @@ __BLK_0:
 	LEA	Z_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
 	MOVE.W	D1,X_EASYING
-	MOVE.W	D1,Y_HALF_SHIFT		; CFG
+	MOVE.W	#$2,Y_HALF_SHIFT		; CFG
 	LSL.W	#$4,D1
 	_PushColorsDOWN	BLUE_TBL,D1
 	BRA.S	.Dont
@@ -722,11 +732,10 @@ __BLK_1:
 	CMPI.W	#28,D7			; WORKS STRAIGHT!
 	BLO.S	.Dont
 	.full:
-	CLR.W	$100				; DEBUG | w 0 100 2
 	BSR.W	__DISABLE_INTENA_WAIT
 	LEA	Z_EASYING_TBL,A0
 	BSR.W	__LFO_EASYING
-	MOVE.W	D1,Y_HALF_SHIFT
+	MOVE.W	#$4,Y_HALF_SHIFT
 	LSL.W	#$4,D1
 	_PushColorsDOWN	BLUE_TBL,D1
 
@@ -1039,7 +1048,9 @@ __BLK_7:
 	MOVE.B	D7,DUMMY_FRAME_COUNT
 	RTS
 
-__BLK_8:
+__BLK_8:	; ## SIREN ##
+	CMPI.W	#33,D7			; WORKS STRAIGHT!
+	BGE.W	__BLK_SIREN\.noColorShift
 	CMPI.W	#32,D7			; WORKS STRAIGHT!
 	BNE.S	.Dont
 	_PushColorsDOWN	MAIN_TBL,#$0
@@ -1907,7 +1918,7 @@ TIMELINE:		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TE
 		DC.L __BLK_E,__BLK_E,__BLK_E,__BLK_E
 		DC.L __BLK_E_BIS,__BLK_E_BIS,__BLK_E_BIS,__BLK_E_PRE
 		DC.L __BLK_A\.noColorReset,__BLK_A\.noColorReset,__BLK_0\.Dont,__BLK_0\.Dont
-		DC.L __BLK_0,__BLK_D
+		DC.L __BLK_1,__BLK_0
 
 AUDIOCHLEVEL0:	DC.W 1
 AUDIOCHLEVEL1:	DC.W 1
@@ -2146,7 +2157,9 @@ COPPER_PRE:
 	DC.W $01A4,$0459	; SpritesRecolor
 	DC.W $01AC,$0459	; SpritesRecolor
 
-	;DC.W $FFDF,$FFFE	; allow VPOS>$ff
+	DC.W $FFDF,$FFFE	; allow VPOS>$ff
+	DC.W $3501,$FF00	; ## RASTER END ## #$12C?
+	DC.W $009A,$0010	; CLEAR RASTER BUSY FLAG
 	DC.W $FFFF,$FFFE	; magic value to end copperlist
 
 ;*******************************************************************************
