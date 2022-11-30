@@ -1,3 +1,8 @@
+;AMIGARAVE by DESiRE 2022
+;CODE: KONEY
+;GFX: VisionVortex
+;MUSIC: Subi
+;*******************
 ;*** MiniStartup by Photon ***
 	INCDIR	"NAS:AMIGA/CODE/dsr_amiga_rave/"
 	SECTION	"Code+PT12",CODE
@@ -16,7 +21,7 @@ TEXTURE_PIXELS	EQU 49
 TEXTURE_H		EQU TEXTURE_PIXELS*8*bpls
 X_SLICE		EQU 26
 Y_SLICE		EQU 32
-SPLASH_DELAY	EQU 1*50
+SPLASH_DELAY	EQU 4*50
 MODSTART_POS	EQU 0		; start music at position # !! MUST BE EVEN FOR 16BIT
 ;*************
 
@@ -163,34 +168,37 @@ Demo:			;a4=VBR, a6=Custom Registers Base addr
 MainLoop:
 	BSR.W	__SET_PT_VISUALS
 	; do stuff here :)
-	;SONG_BLOCKS_EVENTS:
-	;* FOR TIMED EVENTS ON BLOCK ****
-	MOVE.W	P61_Pos,D5
-	LEA	TIMELINE,A3
-	ADD.W	D5,D5			; CALCULATES OFFSET (OPTIMIZED)
-	ADD.W	D5,D5			; CALCULATES OFFSET (OPTIMIZED)
-	MOVE.L	(A3,D5),A3		; THANKS HEDGEHOG!!
-	JSR	(A3)			; EXECUTE SUBROUTINE BLOCK#
+	MOVE.W	P61_Pos,D5	; SONG_BLOCKS_EVENTS:
+	LEA	TIMELINE,A3	; FOR TIMED EVENTS ON BLOCKS
+	ADD.W	D5,D5		; CALCULATES OFFSET (OPTIMIZED)
+	ADD.W	D5,D5		; CALCULATES OFFSET (OPTIMIZED)
+	MOVE.L	(A3,D5),A3	; THANKS HEDGEHOG!!
+	JSR	(A3)		; EXECUTE SUBROUTINE BLOCK#
 
 	.WaitRasterCopper:
-	;MOVE.W	#$0FF0,$DFF180		; show rastertime left down to $12c
+	;MOVE.W	#$0FF0,$DFF180	; show rastertime left down to $12c
 	BTST	#$4,INTENAR+1
 	BNE.S	.WaitRasterCopper
-	;MOVE.W	#$0F00,$DFF180		; show rastertime left down to $12c
+	;MOVE.W	#$0F00,$DFF180	; show rastertime left down to $12c
 	MOVE.W	#$8010,INTENA
 
 	;*--- main loop end ---*
-	;ENDING_CODE:
-	BTST	#6,$BFE001
-	BNE.S	.DontShowRasterTime
-	BSR.W	__BLK_JMP
-	.DontShowRasterTime:
+	BTST	#6,$BFE001	; POTINP - LMB pressed?
+	BEQ.W	.exit
 	BTST	#2,$DFF016	; POTINP - RMB pressed?
 	BNE.W	MainLoop		; then loop
+
+	;BTST	#6,$BFE001
+	;BNE.S	.DontShowRasterTime
+	;BSR.W	__BLK_JMP
+	;.DontShowRasterTime:
+	;BTST	#2,$DFF016	; POTINP - RMB pressed?
+	;BNE.W	MainLoop		; then loop
+
 	;*--- exit ---*
-	;*---  Call P61_End  ---
+	.exit:
 	MOVEM.L D0-A6,-(SP)
-	JSR P61_End
+	JSR P61_End		; *---  Call P61_End  ---
 	MOVEM.L (SP)+,D0-A6
 	RTS
 
@@ -1901,8 +1909,7 @@ __SCROLL_COMBINED:
 	RTS
 
 ;********** Fastmem Data **********
-TIMELINE:		;DC.L __BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST,__BLK_TEST
-		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
+TIMELINE:		DC.L __BLK_0,__BLK_0,__BLK_1,__BLK_3
 		DC.L __BLK_0,__BLK_1,__BLK_0,__BLK_4
 		DC.L __BLK_5,__BLK_5,__BLK_6,__BLK_6\.CheckVox
 		DC.L __BLK_7_PRE,__BLK_7,__BLK_7_PRE_2,__BLK_8
@@ -1928,11 +1935,6 @@ P61_SEQ_POS:	DC.W 0
 P61_DUMMY_SEQPOS:	DC.W 63
 P61_ROW_INDEX:	DC.W 0		; $0-$F
 DUMMY_FRAME_COUNT:	DC.B 0,0
-BLIT_Y_MASK:	DC.W $FFFF
-BLIT_X_MASK:	DC.W $FFFF
-BLIT_A_MOD:	DC.W 0
-BLIT_D_MOD:	DC.W 0
-X_HALF_SHIFT:	DC.W 0
 Y_HALF_SHIFT:	DC.W 2
 X_INCREMENT:	DC.W 1
 Y_INCREMENT:	DC.W 1
