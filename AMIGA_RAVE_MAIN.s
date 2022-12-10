@@ -2003,7 +2003,7 @@ MIXED_TBL:	DC.W $0001,$000F,$0F00,$0F0F,$0B01,$0506,$070F,$0708	; MIXED
 
 DSR_LOGO:		INCLUDE "sprites_logo.i"
 MODULE:		INCBIN "subi-rave_amiga_demo-preview_5_fix.P61"		; code $960F
-PIC:		INCBIN "intro_VV_v4.raw"
+PIC:		INCBIN "intro_VV_v4.1.raw"
 
 COPPER:
 	DC.W $1FC,0	; Slow fetch mode, remove if AGA demo.
